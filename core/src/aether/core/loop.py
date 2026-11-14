@@ -729,7 +729,7 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
             found = await s.diffcheck.after_action()
             if found:
                 out = f"{out}\n{found}"
-        if not finished and (held_finish or index + 1 == len(calls)):
+        if getattr(s.config, "completion_notices", False) and not finished and (held_finish or index + 1 == len(calls)):
             out += await completion_notice.before_model(s)
         out = await _save(s, out)
         if s.state and not finished:

@@ -48,8 +48,6 @@ async def finished(terminals, seen: set[tuple[str, int]]) -> list[dict]:
 
 async def before_model(s) -> str:
     """Notice lines for the tool result just produced (empty when nothing newly finished)."""
-    if not s.config.completion_notices:
-        return ""
     seen = s.result.extras.setdefault("completion_notices_seen", [])
     try:
         found = await finished(s.terminals, {(row["owner"], row["sequence"]) for row in seen})
