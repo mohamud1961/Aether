@@ -79,6 +79,7 @@ class Session:
     cursor: int = 0
     seq: int = 0
     pending: int = 0  # command whose completion marker has not been seen yet
+    dispatch_unconfirmed: bool = False  # an adopted command may have reached the interpreter
     exit_receipt: tuple[int, int] | None = None  # command sequence and terminal-reported exit
     last_size: int = 0
     grew_at: float = 0.0  # monotonic time the log last grew

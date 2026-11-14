@@ -259,6 +259,8 @@ class Terminals(TerminalLifecycle):
             # Ctrl-C as a command is an interrupt (P2 10-22: "\x03" refused as "input not sent" again and again)
             input, interrupt = "", True
             note += "[Ctrl-C in command input was sent as interrupt=true]\n"
+        if session.dispatch_unconfirmed and input and mode == "keys" and not interrupt:
+            return note + f"[input not sent: terminal {name} has an unconfirmed dispatch. Observe its exit or explicitly interrupt it first.]"
         if input and mode == "command" and not interrupt and session.pending:
             # Look at the running command first. Writing the new one into the busy shell queued it unseen and
             # moved `pending` to it, so "still running" then described a command that had not started
@@ -269,10 +271,12 @@ class Terminals(TerminalLifecycle):
                 session = await self._restart(session)
                 earlier = f"[{gone}; its previous command's output is lost. A fresh terminal {name} was started]"
             if session.pending and name in self._sessions:
+                reason = ("has an unconfirmed dispatch" if session.dispatch_unconfirmed
+                          else "is still running its previous command")
                 return (
                     note
                     + (
-                        f"[input not sent: terminal {name} is still running its previous command. To run it now, call "
+                        f"[input not sent: terminal {name} {reason}. To run it now, call "
                         f'terminal with name="{name}2" (a new terminal) or with interrupt=true to stop that command; '
                         f'to type into the running program instead, use mode="keys"]\n'
                     )
@@ -479,6 +483,7 @@ class Terminals(TerminalLifecycle):
             delay = min(1.0, delay * 1.5)
         if mark is not None:
             session.pending = 0
+            session.dispatch_unconfirmed = False
             session.exit_receipt = (int(mark.group(1)), int(mark.group(2)))
             facts_replay.record_terminal_receipt(session, mark, self._capture_state)
             session.command_resolution = session.pending_resolution
@@ -502,6 +507,9 @@ class Terminals(TerminalLifecycle):
             cwd = (session.last_observed_cwd if session.last_observed_cwd is not None
                    else "unknown (ambiguous receipt)") if self._command_names else mark.group(4).strip()
             status = f"[exit {mark.group(2)}{piped} · {elapsed:.1f}s · terminal {name} · cwd {cwd}]"
+        elif session.dispatch_unconfirmed:
+            status = (f"[terminal {name}: dispatch of command #{seq} is unconfirmed and no exit has been observed. "
+                      "Wait, explicitly interrupt, or do unrelated work in another terminal.]")
         elif seq is not None:
             quiet = time.monotonic() - session.grew_at
             status = (

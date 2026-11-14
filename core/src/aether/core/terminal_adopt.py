@@ -117,10 +117,11 @@ async def adopt(terminals, name: str) -> tuple[Session, dict] | None:
     session.seq = seq or 0
     session.cursor = int(sent) if sent and sent.isdigit() else int(size.strip() or 0)
     session.last_size = session.cursor
-    if state in ("running", "completed"):
+    if state in ("running", "completed") or (state == "dispatch_unconfirmed" and alive):
         # The normal observation path reads the receipt (now or later) and delivers the output from the recorded
         # offset exactly once, as it would have for the original controller.
         session.pending = seq
+    session.dispatch_unconfirmed = state == "dispatch_unconfirmed" and alive
     session.ready = alive
     if alive:
         session.identity = await process_identities(terminals._env, [pid])

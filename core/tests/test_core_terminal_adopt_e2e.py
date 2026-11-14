@@ -118,13 +118,37 @@ def test_written_but_unconfirmed_command_is_reported_and_never_run(tmp_path):
 
         second = controller(tmp_path)
         try:
-            out = await second.use(name="w", input="printf fresh > fresh", wait_s=5)
-            assert "never confirmed delivered" in out and "[exit 0" in out
+            out = await second.use(name="w", input="printf fresh > fresh", wait_s=0)
+            assert "never confirmed delivered" in out and "input not sent" in out
             assert second.adoptions[0]["state"] == "dispatch_unconfirmed"
-            assert not (tmp_path / "unconfirmed").exists() and (tmp_path / "fresh").read_text() == "fresh"
-            assert second._sessions["w"].seq == 3
+            assert not (tmp_path / "unconfirmed").exists() and not (tmp_path / "fresh").exists()
+            assert "[exit 0" in await second.use(name="separate", input="printf fresh > fresh", wait_s=5)
+            assert (tmp_path / "fresh").read_text() == "fresh"
         finally:
             await second.close()
+
+    asyncio.run(go())
+
+
+def test_delivered_command_without_ack_cannot_queue_a_second_effect(tmp_path):
+    async def go():
+        first = controller(tmp_path)
+        assert "still running" in await first.use(name="export", input=GATED, wait_s=0.3)
+        shell = first._sessions["export"]
+        await until(tmp_path / "marker")
+        # Reproduce the visible state at the gap between FIFO delivery and acknowledgement.
+        (Path(shell.root) / "sent_1").unlink()
+        second = controller(tmp_path)
+        try:
+            note = await second.use(name="export", input="printf duplicate >> output", wait_s=0)
+            (tmp_path / "release").touch()
+            seen = await second.wait_events(["export"], mode="all", wait_s=5)
+            assert "input not sent" in note
+            assert [(r["sequence"], r["exit"]) for r in seen["completed"]] == [(1, 3)]
+            assert (tmp_path / "output").read_bytes() == b"once"
+        finally:
+            (tmp_path / "release").touch()
+            await first.close()
 
     asyncio.run(go())
 
