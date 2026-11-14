@@ -117,16 +117,30 @@ def test_plain_directory_without_git_or_listeners_adds_no_note(tmp_path):
     work.mkdir()
     (work / "data.csv").write_text("a,b\n")
     first, rows = run(tmp_path, work, enabled=True)
-    assert "Repositories and services" not in first
+    assert "git repository" not in first
     (row,) = [r for r in rows if r["event"] == "env_map"]
     assert row["ok"] and row["repos"] == 0
 
 
-def test_ownerless_listener_is_omitted_only_when_root_sees_every_owner():
+def test_listener_with_unknown_owner_is_still_reported():
     from aether.core.env_map import parse
 
     raw = "L\ttcp\t0B00007F:A1B2\t999\nL\ttcp\t0100007F:1F90\t555\nS\t/proc/7/fd\tsocket:[555]\n"
-    as_root, row = parse(raw + "U\t0\n", {"7": "nginx"})
-    assert as_root == ["- listening TCP: 127.0.0.1:8080 (nginx, pid 7)"] and row["outside_sandbox"] == 1
-    as_user, row = parse(raw + "U\t1000\n", {"7": "nginx"})
-    assert "127.0.0.11:41394 (owner not visible)" in as_user[0] and row["outside_sandbox"] == 0
+    lines, row = parse(raw, {"7": "nginx"})
+    assert "127.0.0.11:41394 (owner not visible)" in lines[0]
+    assert "127.0.0.1:8080 (nginx, pid 7)" in lines[0] and row["unknown_owner"] == 1
+
+
+def test_workspace_does_not_map_external_worktree_metadata(tmp_path):
+    parent = tmp_path / "external-repo"
+    parent.mkdir()
+    git(parent, "init", "-q", "-b", "external")
+    (parent / "sample").write_text("parent input")
+    git(parent, "add", "sample")
+    git(parent, "commit", "-q", "-m", "outside test checkout")
+    work = tmp_path / "work"
+    git(parent, "worktree", "add", "-q", "-b", "linked", str(work))
+    first, rows = run(tmp_path, work, enabled=True)
+    assert "outside test checkout" not in first and "git repository" not in first
+    (row,) = [r for r in rows if r["event"] == "env_map"]
+    assert row["ok"] and row["repos"] == 0
