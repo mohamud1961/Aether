@@ -12,10 +12,11 @@ WRITER = ("printf 'checked\\n' > result.txt; "
           "sleep 0.4; done' > /dev/null 2>&1 &")
 
 
-def run(tmp_path, command, settle):
+def run(tmp_path, command, settle, setup=None):
     work = tmp_path / "work"
     work.mkdir()
     client = ScriptedClient([
+        *([] if setup is None else [setup]),
         call("terminal", {"input": command, "wait_s": 0.5}, "write"),
         call("finish", {"summary": "result.txt is written and checked."}, "first"),
         call("finish", {"summary": "Finishing as it is."}, "second"),
@@ -55,3 +56,12 @@ def test_settled_delivery_is_not_held(tmp_path):
     assert result.status == "finished" and len(client.requests) == 2
     (settle,) = [r for r in rows if r["event"] == "finish_settle"]
     assert settle["status"] == "settled" and settle["files"] == 1
+
+
+def test_deleted_scratch_file_does_not_hide_an_active_writer(tmp_path):
+    result, client, rows = run(tmp_path, "rm scratch; " + WRITER, settle=True,
+                               setup=call("write_file", {"path": "scratch", "content": "temporary"}, "scratch"))
+    assert result.status == "finished" and len(client.requests) == 4
+    (settle,) = [r for r in rows if r["event"] == "finish_settle"]
+    assert settle["status"] == "changing"
+    assert [r["path"].rsplit("/", 1)[-1] for r in settle["changed"]] == ["result.txt"]

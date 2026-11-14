@@ -44,16 +44,19 @@ def compare(before: list[dict[str, Any]], after: list[dict[str, Any]]) -> list[d
 
 
 async def measure(env, workdir: str, control_dir: str, written: set[str], wait_s: float = SETTLE_S) -> dict[str, Any]:
-    first, _ = await _files(env, workdir, control_dir, written)
+    first, first_total = await _files(env, workdir, control_dir, written, check_absence=True)
     if isinstance(first, str):
         return {"status": "unmeasured", "reason": first}
     await asyncio.sleep(wait_s)
-    second, _ = await _files(env, workdir, control_dir, written)
+    second, second_total = await _files(env, workdir, control_dir, written, check_absence=True)
     if isinstance(second, str):
         return {"status": "unmeasured", "reason": second}
     changed = compare(first, second)
-    return {"status": "changing" if changed else "settled", "changed": changed, "files": len(second),
-            "wait_s": wait_s}
+    from .finish_report import MAX_FILES
+
+    partial = max(first_total, second_total) > MAX_FILES
+    return {"status": "changing" if changed else "unmeasured" if partial else "settled",
+            "changed": changed, "files": len(second), "partial": partial, "wait_s": wait_s}
 
 
 def render(row: dict[str, Any], processes: list[str]) -> str:

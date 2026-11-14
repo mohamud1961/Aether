@@ -76,7 +76,7 @@ def record(step: int, name: str, args: dict[str, Any], out: str, workdir: str) -
 
 
 async def _files(
-    env: Environment, workdir: str, control_dir: str, written: set[str]
+    env: Environment, workdir: str, control_dir: str, written: set[str], *, check_absence: bool = False,
 ) -> tuple[list[dict[str, Any]] | str, int]:
     """The changed files (at most MAX_FILES, those a file tool wrote first) and how many changed in all."""
     try:
@@ -98,6 +98,9 @@ async def _files(
     # Hash stdin so GNU SHA utilities do not escape a pathname into the digest.
     command = (
         f"cd {shlex.quote(workdir)} && for f in {listing}; do "
+        + ('if [ ! -e "$f" ] && [ ! -L "$f" ] && [ -x "${f%/*}/" ]; then '
+           'printf "%s\\0-\\0-\\0" "$f"; continue; fi; ' if check_absence else '')
+        + 'test -f "$f" && ! test -L "$f" || exit 1; '
         'size=$(wc -c < "$f") || exit 1; '
         'digest=$(sha256sum < "$f" 2>/dev/null || shasum -a 256 < "$f" 2>/dev/null) || exit 1; '
         'printf "%s\\0%s\\0%s\\0" "$f" "$size" "${digest%% *}"; done'
@@ -112,6 +115,8 @@ async def _files(
     rows = []
     for index, expected_name in enumerate(paths):
         name, size, digest = parts[index * 3 : index * 3 + 3]
+        if check_absence and name == expected_name and size == digest == "-":
+            continue
         if name != expected_name or not size.strip().isdigit() or not re.fullmatch(r"[0-9a-f]{64}", digest):
             return "the changed files could not be fingerprinted exactly", total
         rows.append(
