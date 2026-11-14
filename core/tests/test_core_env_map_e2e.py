@@ -131,6 +131,20 @@ def test_listener_with_unknown_owner_is_still_reported():
     assert "127.0.0.1:8080 (nginx, pid 7)" in lines[0] and row["unknown_owner"] == 1
 
 
+def test_ipv6_listener_reports_the_address_for_direct_use(tmp_path):
+    work = tmp_path / "work"
+    work.mkdir()
+    with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as server:
+        try:
+            server.bind(("::1", 0))
+        except OSError as exc:
+            pytest.skip(f"IPv6 loopback not available: {exc}")
+        server.listen()
+        port = server.getsockname()[1]
+        first, _ = run(tmp_path, work, enabled=True)
+        assert f"[::1]:{port}" in first
+
+
 def test_workspace_does_not_map_external_worktree_metadata(tmp_path):
     parent = tmp_path / "external-repo"
     parent.mkdir()

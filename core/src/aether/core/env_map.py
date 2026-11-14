@@ -20,7 +20,9 @@ preserved. A failed probe adds nothing and is recorded in the trace.
 
 from __future__ import annotations
 
+from ipaddress import IPv6Address
 import shlex
+import sys
 
 from .env import Environment, run
 
@@ -71,9 +73,12 @@ def _address(proto: str, local: str) -> str:
     if proto == "tcp" and len(host) == 8:
         octets = [str(int(host[i:i + 2], 16)) for i in range(6, -1, -2)]
         return f"{'.'.join(octets)}:{number}"
-    if set(host) == {"0"}:
-        return f"[::]:{number}"
-    return f"[ipv6]:{number}"
+    if proto == "tcp6" and len(host) == 32:
+        # Linux prints each 32-bit word in its native byte order.
+        packed = b"".join(int(host[i:i + 8], 16).to_bytes(4, sys.byteorder)
+                          for i in range(0, 32, 8))
+        return f"[{IPv6Address(packed)}]:{number}"
+    return f"[address unavailable]:{number}"
 
 
 def parse(stdout: str, comm: dict[str, str]) -> tuple[list[str], dict]:
