@@ -119,6 +119,7 @@ class CoreConfig:
     stable_facts: bool = False
     terminal_events: bool = False
     finish_settle: bool = False  # hold the first finish once if delivered files are still changing (finish_settle)
+    skills_dir: str | None = None  # opt-in (AETHER_CORE_SKILLS): the task-declared skills directory to list at start
     env_map: bool = False  # opt-in: repositories and listening services, measured once at start (env_map)
     completion_notices: bool = False  # opt-in: one line when a background terminal command finishes (completion_notice)
     workspace_brief: bool = False
@@ -326,6 +327,12 @@ async def run_agent(
                 mapped, row = await env_map.take(s.env, workdir)
                 trace("env_map", **row)
                 start_note = "\n".join(x for x in (start_note, mapped) if x)
+            if getattr(config, "skills_dir", None) and config.role == "worker":
+                from . import skills
+
+                listed, row = await skills.take(s.env, config.skills_dir)
+                trace("skills", **row)
+                start_note = "\n".join(x for x in (start_note, listed) if x)
             # the start marker: files newer than it are what the run changed (the verifier and the finish report
             # use it). Only the verifier needs it to work; for the report a missing marker is a reported fact, not a
             # run failure.
