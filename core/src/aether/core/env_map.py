@@ -119,8 +119,9 @@ def parse(stdout: str, comm: dict[str, str]) -> tuple[list[str], dict]:
                    "unknown_owner": sum(1 for _, _, i in listen if i not in owners)}
 
 
-async def take(env: Environment, workdir: str) -> tuple[str, dict]:
+async def take(env: Environment, workdir: str, task: str = "") -> tuple[str, dict]:
     """The start note ('' when nothing was found or the probe failed) and a trace row."""
+    from . import env_map_more
     script = _SCRIPT.replace("{max_repos}", str(MAX_REPOS)).replace("{max_listen}", str(MAX_LISTEN))
     try:
         result = await run(env, f"sh -c {shlex.quote(script)} core-env-map {shlex.quote(workdir)}", timeout_s=60)
@@ -136,10 +137,12 @@ async def take(env: Environment, workdir: str) -> tuple[str, dict]:
     except Exception as exc:  # an instrument: no note, no claim
         return "", {"ok": False, "reason": f"{type(exc).__name__}: {exc}"[:300]}
     lines, row = parse(result.stdout, comm)
+    more, more_row = await env_map_more.take(env, workdir, task)
+    lines, row = lines + more, {**row, **more_row}
     if not lines:
         return "", {"ok": True, **row, "chars": 0}
     text = "\n".join(lines)
     if len(text) > MAX_CHARS:
         text = text[:MAX_CHARS] + "\n  ..."
-    return f"(Repositories and services, measured by the harness before your first action:\n{text})", {
+    return f"(Repositories, services, data files and paths, measured by the harness before your first action:\n{text})", {
         "ok": True, **row, "chars": len(text)}

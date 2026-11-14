@@ -329,7 +329,7 @@ async def run_agent(
             if config.env_map and config.role == "worker":
                 from . import env_map
 
-                mapped, row = await env_map.take(s.env, workdir)
+                mapped, row = await env_map.take(s.env, workdir, task)
                 trace("env_map", **row)
                 start_note = "\n".join(x for x in (start_note, mapped) if x)
             if getattr(config, "skills_dir", None) and config.role == "worker":
