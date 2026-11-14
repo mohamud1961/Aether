@@ -637,7 +637,7 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
     failed = bool(mirror_error)
     finished = False
     fact_update = False
-    buffered: dict[int, tuple[dict, str, bool, float]] = {}
+    buffered: dict[int, tuple[dict, str, bool, float, bool]] = {}
     for index, call in enumerate(calls):
         name = call["function"]["name"]
         if name == "finish" and failed:
@@ -660,7 +660,7 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
                 *(read_one(item) for item in calls[index:end])
             )
             buffered.update(zip(range(index, end), results))
-        args, out, finished, duration = (
+        args, out, finished, duration, held_finish = (
             buffered.pop(index) if index in buffered else await _invoke(s, call)
         )
         failed = failed or out.startswith("error:")
@@ -717,6 +717,17 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
         )
         if finished:
             return True
+        if held_finish:
+            # The hold requires a new model decision. Close the tool packet
+            # without executing actions queued before the model saw the hold.
+            for queued in calls[index + 1:]:
+                cid = queued["id"]
+                s.trace("action_skipped", call_id=cid, reason="finish_held")
+                _append(s, {
+                    "role": "tool", "tool_call_id": cid,
+                    "content": "[not dispatched: finish was held for a new decision]",
+                })
+            break
     if failed:
         await _require_environment(s)
     if fact_update and s.facts_timeline:
@@ -758,17 +769,18 @@ async def _require_environment(s: _Session) -> None:
     raise EnvironmentUnverified(f"the sandbox could not be confirmed live: {error}")
 
 
-async def _invoke(s: _Session, call: dict) -> tuple[dict, str, bool, float]:
+async def _invoke(s: _Session, call: dict) -> tuple[dict, str, bool, float, bool]:
     """Execute one validated call, preserving errors and result ownership for ordered publication."""
     started = time.monotonic()
     name = call["function"]["name"]
     args: dict[str, Any] = {}
-    finished = False
+    finished, held_finish = False, False
     try:
         args = parse_arguments(call["function"]["arguments"])
         validate_call(name, args, s.tools)
         s.call_id = call["id"]
         out, finished = await _dispatch(s, name, args)
+        held_finish = name == "finish" and not finished
     except Exception as exc:
         out = f"error: {type(exc).__name__}: {str(exc)[:1000]}"
         if isinstance(exc, json.JSONDecodeError) and s.output_cut:  # y13/y14: 4 of 4 bad-JSON calls were cut off here
@@ -776,7 +788,7 @@ async def _invoke(s: _Session, call: dict) -> tuple[dict, str, bool, float]:
                     "nothing ran; write long content in smaller parts, e.g. write_file a first part, then append the rest from the terminal)")
         elif isinstance(exc, json.JSONDecodeError):
             out += " (the call's arguments were not valid JSON; it is shown with {} in your history)"
-    return args, out, finished, round(time.monotonic() - started, 3)
+    return args, out, finished, round(time.monotonic() - started, 3), held_finish
 
 
 async def _save(s: _Session, out: str) -> str:

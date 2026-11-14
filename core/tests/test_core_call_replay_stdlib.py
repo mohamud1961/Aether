@@ -26,7 +26,7 @@ async def fake_invoke(s, call):
         await asyncio.sleep(call["sleep"])
     EVENTS.append(("end",label))
     out=call.get("out",f"ok:{label}")
-    return call.get("args",{}),out,name=="finish",0.001
+    return call.get("args",{}),out,name=="finish",0.001,False
 
 async def fake_save(s,output):
     return output
