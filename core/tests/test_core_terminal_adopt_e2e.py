@@ -153,6 +153,34 @@ def test_delivered_command_without_ack_cannot_queue_a_second_effect(tmp_path):
     asyncio.run(go())
 
 
+def test_live_controller_fences_keys_after_a_lost_dispatch_reply(tmp_path):
+    class LostReply(LocalEnv):
+        async def exec(self, command, **kwargs):
+            result = await super().exec(command, **kwargs)
+            if "/sent_1.tmp" in command:
+                raise TimeoutError("environment lost the reply after dispatch")
+            return result
+
+    async def go():
+        terminal = Terminals(LostReply(tmp_path), str(tmp_path), lambda: 60,
+                             control_dir=str(tmp_path / "ctl"), preserve_existing=True)
+        try:
+            with pytest.raises(TimeoutError, match="lost the reply"):
+                await terminal.use(name="job", input=GATED, wait_s=0)
+            await until(tmp_path / "marker")
+            refused = await terminal.use(name="job", input="printf second >> output\n", mode="keys", wait_s=0)
+            assert "input not sent" in refused
+            (tmp_path / "release").touch()
+            done = await terminal.wait_events(["job"], mode="all", wait_s=5)
+            assert [(row["sequence"], row["exit"]) for row in done["completed"]] == [(1, 3)]
+            assert (tmp_path / "output").read_text() == "once"
+        finally:
+            (tmp_path / "release").touch()
+            await terminal.close()
+
+    asyncio.run(go())
+
+
 def test_interactive_input_preserves_the_outstanding_command_on_restart(tmp_path):
     async def go():
         first = controller(tmp_path)

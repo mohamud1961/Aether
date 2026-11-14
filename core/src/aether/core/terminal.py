@@ -137,13 +137,20 @@ class Terminals(TerminalLifecycle):
                 f"sleep 0.1; i=$((i+1)); done; printf '%s\\n' \"$m\"; "
                 f"{alive_test(session.pid)} && echo __ALIVE__ || echo __DEAD__; echo __SIZE__; wc -c < {log} 2>/dev/null; true"
             )
+        tracks_dispatch = self._preserve_existing and wait is not None and wait[0] != 0
+        if tracks_dispatch:
+            session.dispatch_unconfirmed = True
         res = await run(self._env, "; ".join(steps), timeout_s=20)
         if res.code == 3 and "dead" in res.stdout:
+            if tracks_dispatch:
+                session.dispatch_unconfirmed = False  # failure preceded the FIFO write
             raise TerminalGone(f"terminal {session.name} is not running")
         if res.code != 0:
             raise RuntimeError(
                 f"could not send input to terminal {session.name}: {(res.stderr or res.stdout).strip()[:200]}"
             )
+        if tracks_dispatch:
+            session.dispatch_unconfirmed = False
         if wait is None:
             return None
         try:
