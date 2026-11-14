@@ -19,6 +19,7 @@ from typing import Any, Callable
 from urllib.parse import urlparse
 
 from . import reasoning_wire as reasoning_wire_mod
+from .images import HISTORY_FIELD
 from .operations import DELIVERY_FIELD
 
 from .calls import CallLog
@@ -201,6 +202,7 @@ class ChatProvider:
         wire_messages = deepcopy(messages)
         for message in wire_messages:
             message.pop(DELIVERY_FIELD, None)  # local continuation metadata, never provider input
+            message.pop(HISTORY_FIELD, None)
         request: dict[str, Any] = {
             "model": self.model,
             "messages": reasoning_wire_mod.outgoing(self.reasoning_wire, wire_messages),

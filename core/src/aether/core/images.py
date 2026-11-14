@@ -31,6 +31,7 @@ MAX_PIXELS = (
 )
 MAX_SIDE = 1024
 KEEP_IMAGES = 2
+HISTORY_FIELD = "aether_image_history"
 IMAGE_TOKENS = 1_500  # conservative per-image cost used by the context budget
 IMAGE_CHARS = int(IMAGE_TOKENS * 3)
 
@@ -151,6 +152,20 @@ def comparison_message(desc: str, url: str, other_desc: str, other_url: str) -> 
     return {"role": "user", "content": message(desc, url)["content"] + message(other_desc, other_url)["content"]}
 
 
+def archive_note(message_id: int) -> str:
+    return f"[original image observation: history MSG {message_id}; use read_history with show_image=true]"
+
+
+def with_history_recall(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = deepcopy(tools)
+    for tool in out:
+        if tool["function"]["name"] == "read_history":
+            tool["function"]["parameters"]["properties"]["show_image"] = {
+                "type": "boolean", "description": "Show the original image observation instead of JSON text.",
+            }
+    return out
+
+
 def _is_image_part(part: Any) -> bool:
     return isinstance(part, dict) and part.get("type") == "image_url"
 
@@ -181,10 +196,10 @@ def limit(
             if n_images and seen + n_images > keep:
                 seen = keep
                 msg = deepcopy(msg)
-                msg["content"] = text_of(content).replace(
-                    "[image]",
-                    "[image no longer shown; call view_image again to see it]",
-                )
+                replacement = "[image no longer shown; call view_image again to see it]"
+                if isinstance(msg.get(HISTORY_FIELD), int):
+                    replacement = archive_note(msg[HISTORY_FIELD])
+                msg["content"] = text_of(content).replace("[image]", replacement)
             elif n_images:
                 seen += n_images
         out.append(msg)

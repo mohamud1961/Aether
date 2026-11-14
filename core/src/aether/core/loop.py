@@ -388,6 +388,8 @@ async def run_agent(
                 from .evidence_context import LOCATE_TOOL
 
                 s.tools.append(LOCATE_TOOL)
+            if see and config.context == "clm" and config.clm.attest_original_history:
+                s.tools = images.with_history_recall(s.tools)
             if config.image_region and see:
                 s.tools = image_region.with_region(s.tools)
             if config.image_compare and see:
@@ -790,6 +792,9 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
     if fact_update and s.facts_timeline:
         _publish_facts(s, s.facts.context_summary(), s.result.steps)
     if s.pending_images:  # images follow all of the turn's tool results (tool messages must stay contiguous)
+        if s.clm and s.clm.settings.attest_original_history:
+            for i, message in enumerate(s.pending_images, len(s.clm.raw)):
+                message.setdefault(images.HISTORY_FIELD, i)
         _append(s, *s.pending_images)
         s.pending_images = []
         s.new_image = True
@@ -872,6 +877,13 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
 
         return await workspace_search.search(s.env, s.workdir, s.config.control_dir, args), False
     if name == "read_history" and s.clm:
+        if args.get("show_image"):
+            if "offset" in args or "limit" in args:
+                raise ValueError("image recall does not take a text offset or limit")
+            message_id = args["message_id"]
+            s.pending_images.append(s.clm.history_image(message_id))
+            s.images_viewed += 1
+            return f"[original image observation from history MSG {message_id}; shown below]", False
         return s.clm.read_history(
             args["message_id"], args.get("offset", 0), args.get("limit", 12000)
         ), False

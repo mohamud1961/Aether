@@ -387,6 +387,15 @@ class ClmContext:
             f"{next_page}]\n{text[offset:end]}"
         )
 
+    def history_image(self, message_id: int) -> dict[str, Any]:
+        """Return a copy of the exact pixels originally presented in an attested history message."""
+        if self.original_message_digest(message_id) is None:
+            raise ValueError(f"history MSG {message_id} has no verified original source")
+        content = self.raw[message_id].get("content")
+        if not isinstance(content, list) or not any(images._is_image_part(part) for part in content):
+            raise ValueError(f"history MSG {message_id} has no image observation")
+        return {"role": "user", "content": deepcopy(content), images.HISTORY_FIELD: message_id}
+
     @staticmethod
     def parse(text: str, voice: str = "legacy") -> list[dict[str, Any]]:
         """The edited mirror as messages. Blocks the model marks as its turns stay assistant turns; everything else
