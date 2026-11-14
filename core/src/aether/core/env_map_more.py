@@ -6,7 +6,7 @@ Each is a measured fact the model would otherwise spend early calls finding, sta
   configured ``core.hooksPath``. A commit can run a hook; a submodule's files are not in the parent's history.
 - Data files in the workspace (D5): kind and size; a CSV/TSV first line; for SQLite, the ``-wal``/``-shm`` files
   beside it and its tables. The tables are read from a copy in a temporary directory, so the original database is
-  never opened: opening it read-write checkpoints and deletes the WAL (the db-wal study, 10 Nov), and read-only
+  never opened. Only regular WAL sidecars are copied. Opening the source read-write can checkpoint and delete the WAL (the db-wal study, 10 Nov), and read-only
   opening can still create ``-shm``.
 - Absolute paths written in the task text (D7): exists or not, and kind. Only literal ``/...`` tokens; nothing is
   inferred from the wording.
@@ -42,14 +42,32 @@ find -P "$wd" -xdev -mindepth 1 -maxdepth 3 \( -name .git -type d -print -prune 
 done
 budget={copy_limit}
 find -P "$wd" -xdev -mindepth 1 -maxdepth 3 \( -name '.*' -type d -prune -o -type f \( -iname '*.csv' -o -iname '*.tsv' -o -iname '*.parquet' -o -iname '*.db' -o -iname '*.sqlite' -o -iname '*.sqlite3' -o -iname '*.json' -o -iname '*.jsonl' -o -iname '*.xlsx' \) -print \) 2>/dev/null | grep -Eiv '{sensitive}' | sort | head -n {max_data} | while IFS= read -r f; do
-  size=$(wc -c < "$f" 2>/dev/null | tr -d ' ')
+  [ -f "$f" ] && [ ! -L "$f" ] || continue
+  size=$(stat -c %s -- "$f" 2>/dev/null) || continue
   rel=${f#"$wd"/}
   if [ "$(head -c 15 "$f" 2>/dev/null)" = "SQLite format 3" ]; then
-    side=""; for s in -wal -shm -journal; do [ -e "$f$s" ] && side="$side $s=$(wc -c < "$f$s" | tr -d ' ')"; done
-    tables="(not read)"; need=$size; [ -e "$f-wal" ] && need=$((need + $(wc -c < "$f-wal")))
-    if command -v python3 >/dev/null 2>&1 && [ "$need" -le "$budget" ]; then
-      t=$(mktemp -d) && cp "$f" "$t/db" && { [ ! -e "$f-wal" ] || cp "$f-wal" "$t/db-wal"; } &&
-        tables=$(cd / && $T python3 -c 'import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); r=[n for n, k in c.execute("select name, type from sqlite_master order by name") if k == "table"]; print((" ".join(r[:12]) + (" (+%d more)" % (len(r) - 12) if len(r) > 12 else "")) or "none")' "$t/db" 2>&1 | head -c 300 | tr '\n' ' ')
+    side=""; need=$size; wal=0; copy=1
+    for s in -wal -shm -journal; do
+      if [ -L "$f$s" ]; then
+        side="$side $s=symlink"; copy=0
+      elif [ -f "$f$s" ]; then
+        n=$(stat -c %s -- "$f$s" 2>/dev/null) || { copy=0; continue; }
+        side="$side $s=$n"
+        [ "$s" = -wal ] && { wal=1; need=$((need + n)); }
+        [ "$s" = -journal ] && copy=0
+      elif [ -e "$f$s" ]; then
+        side="$side $s=nonregular"; copy=0
+      fi
+    done
+    tables="(not read)"
+    if [ "$copy" -eq 0 ]; then
+      tables="(sidecar not copied)"
+    elif command -v python3 >/dev/null 2>&1 && [ "$need" -le "$budget" ]; then
+      t=$(mktemp -d) && cp --no-dereference "$f" "$t/db" && [ ! -L "$t/db" ] &&
+        { [ "$wal" -eq 0 ] || { cp --no-dereference "$f-wal" "$t/db-wal" && [ ! -L "$t/db-wal" ]; }; } &&
+        { tables=$(cd / && $T python3 -I -c 'import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); r=[n for n, k in c.execute("select name, type from sqlite_master order by name") if k == "table"]; print((" ".join(r[:12]) + (" (+%d more)" % (len(r) - 12) if len(r) > 12 else "")) or "none")' "$t/db" 2>/dev/null) ||
+          tables="(schema unavailable)"; }
+      tables=$(printf '%.300s' "$tables" | tr '\t\r\n' ' ')
       rm -rf "$t"; budget=$((budget - need))
     fi
     printf 'D\t%s\tsqlite\t%s\t%s\t%s\n' "$rel" "$size" "$side" "$tables"
@@ -61,7 +79,9 @@ done
 for p in "$@"; do
   if [ -L "$p" ]; then k="symlink to $(readlink "$p" | head -c 120)"
   elif [ -d "$p" ]; then k="directory"
-  elif [ -f "$p" ]; then k="file, $(wc -c < "$p" 2>/dev/null | tr -d ' ') bytes"
+  elif [ -f "$p" ]; then
+    n=$(stat -c %s -- "$p" 2>/dev/null)
+    if [ -n "$n" ]; then k="file, $n bytes"; else k="file (size unavailable)"; fi
   elif [ -e "$p" ]; then k="exists (not a regular file or directory)"
   else k="does not exist"; fi
   printf 'P\t%s\t%s\n' "$p" "$k"
@@ -103,9 +123,24 @@ def parse(stdout: str) -> tuple[list[str], dict]:
         elif f[0] == "D" and len(f) == 6:
             name, kind, size, side, extra = f[1], f[2], f[3], f[4].split(), f[5].strip()
             if kind == "sqlite":
-                beside = f"; beside it: {', '.join(s.replace('=', ' ') + ' bytes' for s in side)}" if side else ""
-                tables = ("tables not read: no python3, or over the copy limit" if extra == "(not read)"
-                          else f"tables, read from a copy: {extra or 'none'}")
+                sidecars = []
+                for item in side:
+                    suffix, _, size_or_kind = item.partition("=")
+                    if size_or_kind.isdigit():
+                        sidecars.append(f"{suffix} {size_or_kind} bytes")
+                    elif size_or_kind == "symlink":
+                        sidecars.append(f"{suffix} is a symlink")
+                    else:
+                        sidecars.append(f"{suffix} is not a regular file")
+                beside = f"; beside it: {', '.join(sidecars)}" if sidecars else ""
+                if extra == "(not read)":
+                    tables = "tables not read: no python3, over the copy limit or unreadable files"
+                elif extra == "(sidecar not copied)":
+                    tables = "tables not read: sidecar skipped"
+                elif extra == "(schema unavailable)":
+                    tables = "tables not read: SQLite query failed on the copy"
+                else:
+                    tables = f"tables, read from a copy: {extra or 'none'}"
                 data.append(f"{name} (SQLite, {size} bytes{beside}; {tables})")
             else:
                 data.append(f"{name} ({size} bytes" + (f"; first line: {extra}" if extra else "") + ")")

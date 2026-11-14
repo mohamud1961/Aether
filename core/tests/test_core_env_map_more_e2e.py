@@ -114,5 +114,42 @@ def test_parse_omits_repositories_with_nothing_extra_and_reports_display():
     lines, row = parse(raw)
     assert lines[0] == "- git repository /w/v: submodules declared 2 (initialized 1); active hooks: pre-push; core.hooksPath .githooks"
     assert lines[1] == "- display: DISPLAY=:99, X sockets X0; Python browser drivers: playwright"
-    assert "db.sqlite (SQLite, 4096 bytes; tables not read: no python3, or over the copy limit)" in lines[2]
+    assert "db.sqlite (SQLite, 4096 bytes; tables not read: no python3, over the copy limit or unreadable files)" in lines[2]
     assert row == {"repos_with_extras": 1, "data_files": 1, "task_paths": 0, "display": True}
+
+
+@linux
+def test_declared_path_reports_inode_size_without_reading_file_contents(tmp_path):
+    work = fixture(tmp_path)
+    declared = tmp_path / "named-input.txt"
+    declared.write_text("named file contents\n")
+    declared.chmod(0)
+    try:
+        first, row = run(tmp_path, work, f"Use the declared input {declared}.")
+        assert row["more_ok"]
+        assert f"{declared} file, 20 bytes" in first, first
+    finally:
+        declared.chmod(0o600)
+
+
+@linux
+def test_startup_does_not_read_a_linked_sqlite_sidecar(tmp_path):
+    work = fixture(tmp_path)
+    wal = work / "data" / "app.db-wal"
+    detached = tmp_path / "detached-wal"
+    wal.rename(detached)
+    wal.symlink_to(detached)
+    first, row = run(tmp_path, work, "Inspect the available data.")
+    assert row["more_ok"] and row["data_files"] == 2
+    assert "tables, read from a copy: orders users" not in first, first
+    assert "tables not read" in first and "-wal is a symlink" in first
+
+
+@linux
+def test_failed_sqlite_schema_read_is_not_reported_as_an_observed_schema(tmp_path):
+    work = fixture(tmp_path)
+    (work / "data" / "broken.db").write_bytes(b"SQLite format 3\0" + b"x" * 4096)
+    first, row = run(tmp_path, work, "Inspect the available data.")
+    assert row["more_ok"]
+    assert "data/broken.db (SQLite, 4112 bytes; tables not read" in first, first
+    assert "Traceback" not in first
