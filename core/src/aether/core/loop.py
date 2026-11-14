@@ -39,7 +39,7 @@ from .record import NEUTRAL_HOLD, Record
 from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
-from . import agenda, browser, open_issues, stated_use, step0, workspace_brief
+from . import agenda, browser, completion_notice, finish_settle, open_issues, stated_use, step0, workspace_brief
 from .tools import system_prompt, tools, validate_call
 
 MAX_OUTPUT_TOKENS = 16_384  # was 32_768; see CoreConfig.max_output_tokens
@@ -118,6 +118,9 @@ class CoreConfig:
     evidence_presentation: str = "off"  # default-off CLM source history index; not a task correctness engine
     stable_facts: bool = False
     terminal_events: bool = False
+    finish_settle: bool = False  # hold the first finish once if delivered files are still changing (finish_settle)
+    env_map: bool = False  # opt-in: repositories and listening services, measured once at start (env_map)
+    completion_notices: bool = False  # opt-in: one line when a background terminal command finishes (completion_notice)
     workspace_brief: bool = False
 
     def __post_init__(self) -> None:
@@ -317,6 +320,12 @@ async def run_agent(
                 brief, row = await env_brief.take(s.env, workdir)
                 trace("env_brief", **row)
                 start_note = "\n".join(x for x in (brief, start_note) if x)
+            if config.env_map and config.role == "worker":
+                from . import env_map
+
+                mapped, row = await env_map.take(s.env, workdir)
+                trace("env_map", **row)
+                start_note = "\n".join(x for x in (start_note, mapped) if x)
             # the start marker: files newer than it are what the run changed (the verifier and the finish report
             # use it). Only the verifier needs it to work; for the report a missing marker is a reported fact, not a
             # run failure.
@@ -695,6 +704,8 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
             found = await s.diffcheck.after_action()
             if found:
                 out = f"{out}\n{found}"
+        if s.config.completion_notices and name != "finish":
+            out += await completion_notice.after_tool(s)
         out = await _save(s, out)
         if s.state and not finished:
             if name in ("write_file", "edit_file") and not out.startswith("error"):
@@ -1036,6 +1047,8 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
             s.trace("finish_pending_terminal_observation", **observed)
             return "Foreground terminal state at finish. Assess these results before finishing.\n" + json.dumps(observed), False
     s.result.extras["finish_args"] = args
+    if s.config.role == "worker" and (settle := await finish_settle.at_finish(s)):
+        return settle, False
     if s.config.open_issues and not s.result.extras.get("open_issues_held"):
         text = open_issues.hold(args, s.remaining(), s.timeout_s)
         s.trace("open_issues", issues=open_issues.issues(args), held=text is not None,
@@ -1166,6 +1179,8 @@ def _close(s: _Session) -> None:
         "diffcheck": {**s.diffcheck.summary(), "usage": s.provider.log.usage(
             [x for x in roles if x.startswith(diffcheck.AUTHOR_ROLE)])} if s.diffcheck else None,
         "finish_hold": s.config.finish_hold,
+        "switches": {"finish_settle": s.config.finish_settle, "completion_notices": s.config.completion_notices,
+                     "env_map": s.config.env_map},
     }
     s.trace(
         "end",

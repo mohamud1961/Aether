@@ -15,7 +15,7 @@ import shlex
 import time
 
 from .env import CONTROL_DIR, Environment, alive_test, run
-from . import facts_probe, facts_replay
+from . import facts_probe, facts_replay, terminal_adopt
 from .terminal_procs import describe_processes
 from .terminal_session import (  # noqa: F401 (some names re-exported)
     MAX_TERMINALS, Session, TerminalGone, TerminalLifecycle, _ASKS, _text, clean,
@@ -70,6 +70,7 @@ class Terminals(TerminalLifecycle):
         self._sessions: dict[str, Session] = {}
         self._name_locks: dict[str, asyncio.Lock] = {}
         self._generations: dict[str, int] = {}
+        self.adoptions: list[dict] = []  # terminals rebuilt from an earlier controller's records (terminal_adopt)
         self._launching: set[str] = (
             set()
         )  # PID files resolve a lost launch reply during cleanup
@@ -117,6 +118,8 @@ class Terminals(TerminalLifecycle):
             f"{alive_test(session.pid)} && [ -p {q(session.fifo)} ] || {{ echo dead; exit 3; }}",
             f"cat {q(session.root + '/pending')} > {q(session.fifo)} || exit 6",
         ]
+        if self._preserve_existing and wait is not None and wait[0]:
+            steps = terminal_adopt.with_delivery_record(steps, session.root, wait[0])
         if wait is not None:
             seq, ticks = wait[0], int(max(0.0, min(wait[1], 3.0)) / 0.1)
             # The receipt is looked for before the size is taken, as in _poll.
@@ -235,11 +238,11 @@ class Terminals(TerminalLifecycle):
     ) -> str:
         if mode not in ("command", "keys"):
             raise ValueError("mode must be 'command' or 'keys'")
+        note = await terminal_adopt.ensure(self, name)
         session = self._sessions.get(name)
-        note = ""
         if session is not None and not session.ready:
             session = await self._restart(session)
-            note = f"[terminal {name} startup was incomplete; a fresh terminal was started]\n"
+            note += f"[terminal {name} startup was incomplete; a fresh terminal was started]\n"
             if mode == "keys":
                 return (
                     note
@@ -248,7 +251,7 @@ class Terminals(TerminalLifecycle):
                 )
         if session is None:
             session = await self._start(name)
-            note = (
+            note += (
                 f"[terminal {name} started{'' if session.pty else ' without a pty'}]\n"
             )
         facts_replay.reset_terminal_pre(session, self._capture_state)

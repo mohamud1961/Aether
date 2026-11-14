@@ -206,6 +206,10 @@ class TerminalLifecycle:
         )
         self._sessions[name] = session  # ownership precedes fallible initialization
         self._launching.remove(root)
+        if self._preserve_existing:
+            # Launch mode for a later controller that adopts this shell (terminal_adopt).
+            await run(self._env, f"printf '%s %s\\n' {'pty' if session.pty else 'nopty'} "
+                                 f"{'bash' if session.bash else 'sh'} > {q(root + '/mode')}")
         try:
             session.identity = await process_identities(self._env, [session.pid])
         except OSError as exc:

@@ -8,6 +8,7 @@ import shlex
 import time
 
 from .env import run
+from . import terminal_adopt
 from .terminal import _NAME
 
 
@@ -39,8 +40,15 @@ async def wait(terminal, names, *, mode, wait_s):
         raise ValueError("terminal_wait requires 1–8 distinct terminal names")
     if mode not in ("any", "all") or type(wait_s) not in (int, float) or not math.isfinite(wait_s) or not 0 <= wait_s <= 300:
         raise ValueError("terminal_wait requires mode any/all and a wait of 0–300 seconds")
-    pending, completed, unknown = {}, [], []
+    pending, completed, unknown, adopted = {}, [], [], []
     for name in names:
+        try:
+            async with terminal._name_locks.setdefault(name, asyncio.Lock()):
+                if await terminal_adopt.ensure(terminal, name):
+                    adopted.append(terminal.adoptions[-1])
+        except (OSError, RuntimeError, TimeoutError) as error:
+            unknown.append({"name": name, "reason": str(error)[:300]})
+            continue
         session = terminal._sessions.get(name)
         if session and session.ready and session.pending:
             pending[name] = (session, session.pending)
@@ -84,6 +92,9 @@ async def wait(terminal, names, *, mode, wait_s):
         # A hint can outlive its marker. Yield before observing again.
         if ready and pending:
             await asyncio.sleep(min(0.1, max(0, deadline - time.monotonic())))
-    return {"completed": completed, "pending": list(pending), "unknown": unknown,
+    result = {"completed": completed, "pending": list(pending), "unknown": unknown,
             "elapsed_s": round(time.monotonic() - started, 3),
             "source": "Core-observed terminal command status"}
+    if adopted:
+        result["adopted"] = adopted
+    return result
