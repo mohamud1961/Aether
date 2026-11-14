@@ -162,7 +162,8 @@ TERMINAL_WAIT = {
             "Wait for completion of outstanding commands in named terminals. "
             "Use when the next action needs an exit or output. Core waits without model polling. "
             "mode=any returns the first available result; mode=all waits for all selected names. "
-            "Other terminals keep running. A timeout lists pending commands."
+            "Other terminals keep running. A timeout lists pending commands. A selected command whose last "
+            "output line asks for input ends the wait early, listed under waiting_for_input."
         ),
         "parameters": {
             "type": "object",

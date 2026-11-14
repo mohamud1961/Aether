@@ -16,7 +16,7 @@ import shlex
 import time
 
 from .env import run
-from .terminal_adopt import _DONE
+from .operations import DONE
 
 MAX_DELIVERED_PER_BOUNDARY = 2
 
@@ -40,7 +40,7 @@ async def finished(terminals, seen: set[tuple[str, int]]) -> list[dict]:
     found = []
     for line in response.stdout.splitlines():
         index, _, text = line.partition(" ")
-        mark = _DONE.search(text)
+        mark = DONE.search(text)
         if not index.isdigit() or int(index) >= len(waiting) or mark is None:
             continue
         name, session = waiting[int(index)]

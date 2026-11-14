@@ -11,16 +11,15 @@ Everything here comes from the sandbox, never from controller memory:
 - ``pid`` and ``birth`` are written by the shell wrapper at launch. Adoption requires the process to be alive and its
   current start time to equal ``birth``, so a reused PID is never adopted.
 - ``mode`` (pty/bash) is written at launch when existing directories are preserved. Without it, adoption is refused.
-- ``pending`` holds the last command line written to the shell. Its sequence number is parsed from the completion
-  receipt it carries. The pre-write log offset is saved under ``claim_<seq>``. ``sent_<seq>`` carries the same
-  offset and is written in the same container exec after the line reached the shell's input.
-- ``done_<seq>`` is the shell's own completion receipt.
-- ``claim_<seq>`` reserves a command before staging. A claim newer than
-  ``pending`` leaves dispatch unconfirmed until its completion is observed.
+- ``pending`` holds the last command line written to the shell; its sequence number is parsed from the completion
+  receipt it carries. A ``claim_<seq>`` newer than ``pending`` is the latest command.
+- The command's state is read from its operation records (:mod:`operations`): the start token, ``done_<seq>`` and
+  ``delivered_<seq>``. A command with no start token is revoked during adoption, so it can never run later.
 
-The adopted state of the latest dispatched command is one of: ``completed`` (receipt present, with its exit),
-``running`` (delivered, no receipt, shell alive), ``dispatch_unconfirmed`` (written but never confirmed delivered),
-or ``lost`` (shell gone, no valid receipt). Adoption never resends, retries or stops anything.
+The adopted state of the latest command is one of: ``delivered`` (its result was already shown), ``completed``
+(receipt present, not yet shown), ``running`` (the shell took it and is alive), ``revoked`` (the shell never took it;
+it can no longer run) or ``lost`` (the shell took it and died without a receipt: its effect is unknown). Adoption
+never resends, retries or stops anything.
 """
 
 from __future__ import annotations
@@ -29,24 +28,22 @@ import re
 import shlex
 import time
 
+from . import operations
 from .env import alive_test, process_identities, run
 from .terminal_session import Session
 
 _SEQ = re.compile(r"__AETHER_DONE_%s_%s[^']*' (\d+) \"\$__aether_s\"")
-_DONE = re.compile(r"__AETHER_DONE_(\d+)_(\d+)")
 _BIRTH = "if [ -r /proc/{pid}/stat ]; then sed 's/.*) //' /proc/{pid}/stat | awk '{{print $20}}'; " \
          "else ps -p {pid} -o lstart= | awk '{{$1=$1;print}}'; fi"
 
 
-def with_delivery_record(steps: list[str], root: str, seq: int) -> list[str]:
-    """Add the delivery record to a command write: ``sent_<seq>`` is written in the same container exec, only after
-    the line reached the shell's input, and holds the log offset taken before it, where the output begins."""
+def with_offset_record(steps: list[str], root: str, seq: int) -> list[str]:
+    """Record, under ``claim_<seq>`` and before the line is offered to the shell, the log offset where the command's
+    output begins, so a later controller delivers its output from there."""
     q = shlex.quote
-    sent = q(f"{root}/sent_{seq}")
     offset = q(f"{root}/claim_{seq}/offset")
     return [*steps[:-1], f"__aether_at=$(wc -c < {q(root + '/out.log')}) || exit 6; "
-            f"printf '%s\\n' \"$__aether_at\" > {offset}.tmp && mv -f {offset}.tmp {offset} || exit 8; {steps[-1]}",
-            f"printf '%s\\n' \"$__aether_at\" > {sent}.tmp && mv -f {sent}.tmp {sent} || exit 8"]
+            f"printf '%s\\n' \"$__aether_at\" > {offset}.tmp && mv -f {offset}.tmp {offset} || exit 8; {steps[-1]}"]
 
 
 def latest_root(control_dir: str, name: str, listing: list[str]) -> tuple[str, int] | None:
@@ -67,20 +64,6 @@ def latest_root(control_dir: str, name: str, listing: list[str]) -> tuple[str, i
 def parse_seq(pending_text: str) -> int | None:
     match = _SEQ.search(pending_text)
     return int(match.group(1)) if match else None
-
-
-def state_of(seq: int | None, sent: str | None, done: str | None, alive: bool) -> tuple[str, int | None]:
-    """Classify the latest dispatched command from sandbox records alone. Returns (state, exit)."""
-    if seq is None:
-        return "idle", None
-    if done is not None:
-        mark = _DONE.search(done)
-        if mark is None or int(mark.group(1)) != seq:
-            return "lost", None
-        return "completed", int(mark.group(2))
-    if not alive:
-        return "lost", None
-    return ("dispatch_unconfirmed", None) if sent is None else ("running", None)
 
 
 async def adopt(terminals, name: str) -> tuple[Session, dict] | None:
@@ -111,30 +94,30 @@ async def adopt(terminals, name: str) -> tuple[Session, dict] | None:
     latest_claim = max((int(line[6:]) for line in claims.splitlines() if line.startswith("claim_")
                         and line[6:].isascii() and line[6:].isdigit()), default=0)
     seq = max(parse_seq(pending_text) or 0, latest_claim) or None
-    sent = done = offset = None
+    token = done = offset = None
+    delivered = False
     if seq is not None:
         records = await run(
             terminals._env,
-            f"cd {q(root)} || exit 4; cat sent_{seq} 2>/dev/null; echo __SEP__; "
-            f"cat claim_{seq}/offset 2>/dev/null; echo __SEP__; cat done_{seq} 2>/dev/null; true",
+            f"{operations.resolve_script(root, seq, revoke=True)}; echo __SEP__; cat {q(f'{root}/claim_{seq}/offset')} 2>/dev/null; true",
         )
-        parts = records.stdout.split("__SEP__\n", 2)
-        if records.code != 0 or len(parts) != 3:
+        found, _, offset_text = records.stdout.rpartition("__SEP__\n")
+        parsed = operations.parse(found)
+        if records.code != 0 or parsed is None:
             raise RuntimeError(f"terminal {name}: command #{seq} records could not be read")
-        sent_text, offset_text, done_text = parts
-        sent = sent_text.strip() or None
-        offset = (sent or offset_text).strip()
-        done = done_text.strip() or None
-    state, exit_status = state_of(seq, sent, done, alive)
+        token, done, delivered = parsed
+        offset = offset_text.strip()
+    state, exit_status = operations.classify(seq, token, done, delivered, alive)
     session = Session(name, root, pid, mode[0] == "pty", bash=mode[1] == "bash", grew_at=time.monotonic())
     session.seq = seq or 0
-    session.cursor = int(offset) if offset and offset.isdigit() else int(size.strip() or 0)
+    unseen = state in ("running", "completed")
+    session.cursor = int(offset) if unseen and offset and offset.isdigit() else int(size.strip() or 0)
     session.last_size = session.cursor
-    if state in ("running", "completed") or (state == "dispatch_unconfirmed" and alive):
-        # The normal observation path reads the receipt (now or later) and delivers the output from the recorded
-        # offset exactly once, as it would have for the original controller.
-        session.pending = seq
-    session.dispatch_unconfirmed = state == "dispatch_unconfirmed" or state == "lost"
+    if unseen:
+        # The model has not seen this command's outcome. The normal observation path reads the receipt (now or
+        # later) and delivers the output from the recorded offset exactly once; new input waits until it has.
+        session.pending, session.unseen = seq, True
+    session.dispatch_unconfirmed = state in ("lost", "unresolved")
     session.ready = alive
     if alive:
         session.identity = await process_identities(terminals._env, [pid])
@@ -143,19 +126,45 @@ async def adopt(terminals, name: str) -> tuple[Session, dict] | None:
                      "shell_alive": alive, "source": "sandbox terminal records"}
 
 
+async def resolve(terminals, session: Session) -> str:
+    """Decide a command whose dispatch reply was lost, from its operation records: the shell took it (then it is
+    observed like any running command, as unseen), or it is cancelled now and can never run. Returns the model-facing
+    note when it was cancelled. Lost or unreadable records leave it unconfirmed."""
+    seq = session.pending or session.seq
+    res = await run(terminals._env, f"{{ {alive_test(session.pid)} && echo __ALIVE__ || echo __DEAD__; }}; "
+                                    f"{operations.resolve_script(session.root, seq, revoke=True)}")
+    alive, _, records = res.stdout.partition("\n")
+    parsed = operations.parse(records)
+    if res.code != 0 or parsed is None:
+        return ""
+    state, _ = operations.classify(seq, *parsed, alive == "__ALIVE__")
+    if state == "revoked":
+        session.pending, session.dispatch_unconfirmed = 0, False
+        return (f"[command #{seq} in terminal {session.name} was never started: its dispatch failed before the "
+                "shell took it, and it is now cancelled, so it cannot run later. Nothing from it ran; send it "
+                "again if it is still needed.]")
+    if state == "delivered":  # another controller already showed its result
+        session.pending, session.dispatch_unconfirmed = 0, False
+    elif state in ("running", "completed"):
+        session.pending, session.dispatch_unconfirmed, session.unseen = seq, False, True
+    return ""
+
+
 def describe(record: dict) -> str:
     """One line for the model: what the earlier controller left, as recorded in the sandbox."""
     name, seq, state = record["name"], record["sequence"], record["state"]
     head = f"[terminal {name} was adopted from an earlier controller of this task"
     if state == "idle":
         return head + "; it had no command recorded]"
+    if state == "delivered":
+        return head + f"; its command #{seq} completed with exit {record['exit']}, already reported]"
     if state == "completed":
         return head + f"; its command #{seq} completed with exit {record['exit']} (the shell's own receipt)]"
     if state == "running":
         return head + f"; its command #{seq} is still running. Wait on it or interrupt it before reusing {name}]"
-    if state == "dispatch_unconfirmed":
-        return head + (f"; command #{seq} was written but never confirmed delivered, and has no completion "
-                       "receipt. Check its intended effect before running it again]")
+    if state == "revoked":
+        return head + (f"; command #{seq} was never started: the shell had not taken it, and it is now cancelled, "
+                       "so it cannot run later. Nothing from it ran; send it again if it is still needed]")
     return head + (f"; its shell is gone and command #{seq} left no completion receipt. Its effect is unknown; "
                    "check the result before running it again]")
 

@@ -10,6 +10,29 @@ import time
 from .env import run
 from . import terminal_adopt
 from .terminal import _NAME
+from .terminal_session import _ASKS, clean
+
+# A pending command whose output has not grown for this long is checked for a prompt as its last line.
+QUIET_S = 4.0
+
+
+async def _asking(terminal, session, quiet_since: dict, now: float) -> str | None:
+    """The last output line when a pending command has been quiet for QUIET_S and that line asks for input.
+
+    Such a command cannot finish until someone answers, so a wait on it would only run out its time."""
+    size, mark, alive = await terminal._poll(session, session.pending)
+    if mark is not None or not alive or size <= session.cursor:
+        quiet_since.pop(session.name, None)
+        return None
+    since = quiet_since.get(session.name)
+    if since is None or since[0] != size:
+        quiet_since[session.name] = (size, now)
+        return None
+    if now - since[1] < QUIET_S:
+        return None
+    tail = clean(await terminal._read(session, max(session.cursor, size - 300), size)).rstrip("\n")
+    last = tail.rsplit("\n", 1)[-1]
+    return last[-200:] if _ASKS.search(last) else None
 
 
 async def _ready(terminal, pending, duration):
@@ -40,7 +63,7 @@ async def wait(terminal, names, *, mode, wait_s):
         raise ValueError("terminal_wait requires 1–8 distinct terminal names")
     if mode not in ("any", "all") or type(wait_s) not in (int, float) or not math.isfinite(wait_s) or not 0 <= wait_s <= 300:
         raise ValueError("terminal_wait requires mode any/all and a wait of 0–300 seconds")
-    pending, completed, unknown, adopted = {}, [], [], []
+    pending, completed, unknown, adopted, asking = {}, [], [], [], []
     for name in names:
         try:
             async with terminal._name_locks.setdefault(name, asyncio.Lock()):
@@ -50,12 +73,19 @@ async def wait(terminal, names, *, mode, wait_s):
             unknown.append({"name": name, "reason": str(error)[:300]})
             continue
         session = terminal._sessions.get(name)
+        if session and session.dispatch_unconfirmed and terminal._preserve_existing:
+            sequence = session.pending or session.seq
+            if await terminal_adopt.resolve(terminal, session):
+                unknown.append({"name": name, "sequence": sequence,
+                                "reason": "never started: cancelled before the shell took it, so nothing ran"})
+                continue
         if session and session.pending:
             pending[name] = (session, session.pending)
         else:
             unknown.append({"name": name, "reason": "no outstanding terminal command"})
     started = time.monotonic()
     deadline = started + min(wait_s, max(0.0, terminal._clock() - 5))
+    quiet_since: dict = {}
     while pending:
         left = deadline - time.monotonic()
         try:
@@ -89,6 +119,19 @@ async def wait(terminal, names, *, mode, wait_s):
             del pending[name]
         if unknown or mode == "any" and completed or time.monotonic() >= deadline:
             break
+        if not ready:
+            for name, (session, sequence) in list(pending.items()):
+                async with terminal._name_locks.setdefault(name, asyncio.Lock()):
+                    if terminal._sessions.get(name) is not session or session.pending != sequence:
+                        continue
+                    try:
+                        line = await _asking(terminal, session, quiet_since, time.monotonic())
+                    except (OSError, RuntimeError, TimeoutError):
+                        line = None
+                if line is not None:
+                    asking.append({"name": name, "sequence": sequence, "last_line": line})
+            if asking:
+                break
         # A hint can outlive its marker. Yield before observing again.
         if ready and pending:
             await asyncio.sleep(min(0.1, max(0, deadline - time.monotonic())))
@@ -97,4 +140,6 @@ async def wait(terminal, names, *, mode, wait_s):
             "source": "Core-observed terminal command status"}
     if adopted:
         result["adopted"] = adopted
+    if asking:  # still pending; listed because they cannot finish without input
+        result["waiting_for_input"] = asking
     return result

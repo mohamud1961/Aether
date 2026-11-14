@@ -47,7 +47,7 @@ def test_running_command_is_adopted_and_completes_once(tmp_path):
             assert seen["adopted"][0]["state"] == "running" and seen["adopted"][0]["sequence"] == 1
             assert seen["pending"] == ["export"] and not seen["unknown"]
             refused = await second.use(name="export", input="printf duplicate >> output", wait_s=1)
-            assert "still running its previous command" in refused
+            assert "input not sent" in refused and "still running" in refused
             (tmp_path / "release").touch()
             done = await second.wait_events(["export"], mode="all", wait_s=10)
             assert [(c["sequence"], c["exit"]) for c in done["completed"]] == [(1, 3)]
@@ -107,7 +107,7 @@ def test_completed_receipt_can_be_recovered_after_its_shell_exits(tmp_path, via_
                 assert not recovered["unknown"]
             else:
                 observation = await second.use(name="job", input="printf second > new-file", wait_s=2)
-                assert "New input was not submitted" in observation
+                assert "input not sent" in observation
                 assert not (tmp_path / "new-file").exists()
             assert "completed-result" in observation and "[exit 6" in observation
         finally:
@@ -145,7 +145,8 @@ def test_stale_controller_cannot_reuse_a_claimed_command_sequence(tmp_path, larg
         try:
             assert "[exit 0" in await first.use(name="job", input="true", wait_s=5)
             prior = await second.wait_events(["job"], mode="all", wait_s=0)
-            assert [(row["sequence"], row["exit"]) for row in prior["completed"]] == [(1, 0)]
+            # The first controller already showed command 1's result; it is recorded delivered and not shown again.
+            assert not prior["completed"] and prior["adopted"][0]["state"] == "delivered"
             assert "still running" in await first.use(name="job", input=GATED, wait_s=0)
             await until(tmp_path / "marker")
             stale = "printf stale >> output"
@@ -166,25 +167,34 @@ def test_stale_controller_cannot_reuse_a_claimed_command_sequence(tmp_path, larg
     asyncio.run(go())
 
 
-def test_written_but_unconfirmed_command_is_reported_and_never_run(tmp_path):
+def test_written_but_untaken_command_is_cancelled_and_never_runs(tmp_path):
     async def go():
         first = controller(tmp_path)
         assert "[exit 0" in await first.use(name="w", input="true", wait_s=5)
         root = tmp_path / "ctl" / "term" / "w"
         # The controller died after staging command 2 and before writing it to the shell.
         staged = (root / "pending").read_text().replace("' 1 \"$__aether_s\"", "' 2 \"$__aether_s\"")
-        (root / "pending").write_text(staged.replace("cmd_1.sh", "cmd_2.sh"))
+        for one, two in (("cmd_1.sh", "cmd_2.sh"), ("/start_1", "/start_2"), ("/done_1", "/done_2")):
+            assert one in staged
+            staged = staged.replace(one, two)
+        (root / "pending").write_text(staged)
         (root / "cmd_2.sh").write_text("printf ran > unconfirmed\n")
         del first
 
         second = controller(tmp_path)
         try:
             out = await second.use(name="w", input="printf fresh > fresh", wait_s=0)
-            assert "never confirmed delivered" in out and "input not sent" in out
-            assert second.adoptions[0]["state"] == "dispatch_unconfirmed"
+            assert "never started" in out and "input not sent" in out
+            assert second.adoptions[0]["state"] == "revoked"
+            assert os.readlink(root / "start_2") == "revoked"
             assert not (tmp_path / "unconfirmed").exists() and not (tmp_path / "fresh").exists()
-            assert "[exit 0" in await second.use(name="separate", input="printf fresh > fresh", wait_s=5)
+            # Command 2 is decided, so the same terminal is usable again, and the cancelled line can never run.
+            assert "[exit 0" in await second.use(name="w", input="printf fresh > fresh", wait_s=5)
             assert (tmp_path / "fresh").read_text() == "fresh"
+            with (root / "in").open("w") as fifo:
+                fifo.write(staged)  # the cancelled line reaches the shell late, as a hung earlier exec would deliver it
+            assert "[exit 0" in await second.use(name="w", input="true", wait_s=5)
+            assert not (tmp_path / "unconfirmed").exists()
         finally:
             await second.close()
 
@@ -197,8 +207,8 @@ def test_delivered_command_without_ack_cannot_queue_a_second_effect(tmp_path):
         assert "still running" in await first.use(name="export", input="echo pre-delivery-gap; " + GATED, wait_s=0.3)
         shell = first._sessions["export"]
         await until(tmp_path / "marker")
-        # Reproduce the visible state at the gap between FIFO delivery and acknowledgement.
-        (Path(shell.root) / "sent_1").unlink()
+        # The dispatch reply never reached a controller; the shell's start token is the only delivery record.
+        assert os.readlink(Path(shell.root) / "start_1") == "run"
         second = controller(tmp_path)
         try:
             note = await second.use(name="export", input="printf duplicate >> output", wait_s=0)
@@ -219,7 +229,7 @@ def test_live_controller_fences_keys_after_a_lost_dispatch_reply(tmp_path):
     class LostReply(LocalEnv):
         async def exec(self, command, **kwargs):
             result = await super().exec(command, **kwargs)
-            if "/sent_1.tmp" in command:
+            if "/claim_1" in command:
                 raise TimeoutError("environment lost the reply after dispatch")
             return result
 

@@ -16,7 +16,7 @@ import time
 import uuid
 
 from .env import CONTROL_DIR, Environment, alive_test, run
-from . import facts_probe, facts_replay, terminal_adopt
+from . import facts_probe, facts_replay, operations, terminal_adopt
 from .terminal_procs import describe_processes
 from .terminal_session import (  # noqa: F401 (some names re-exported)
     MAX_TERMINALS, Session, TerminalGone, TerminalLifecycle, _ASKS, _text, clean,
@@ -51,6 +51,7 @@ _XSTATE = '__aether_x=; [ "${-#*x}" = "$-" ] || __aether_x=1; set +x; '
 _QUIET = "{ " + _XSTATE + "} 2>/dev/null; "
 _TRACE_BACK = '{ [ -z "$__aether_x" ] || set -x; } 2>/dev/null; '
 _CAPTURE = "{ __aether_s=$?; " + _XSTATE + "} 2>/dev/null"  # re-read: the command may have run set -x or set +x
+_REVOKED = "__AETHER_REVOKED__"
 
 
 class _TerminalSequenceClaimed(RuntimeError):
@@ -131,7 +132,7 @@ class Terminals(TerminalLifecycle):
             f"cat {source} > {q(session.fifo)} || exit 6",
         ]
         if tracks_dispatch:
-            steps = terminal_adopt.with_delivery_record(steps, session.root, wait[0])
+            steps = terminal_adopt.with_offset_record(steps, session.root, wait[0])
             claim = q(f"{session.root}/claim_{wait[0]}")
             # The in-memory lock does not coordinate resumed controllers. Take
             # the sequence before clearing its receipt or touching the FIFO.
@@ -182,7 +183,12 @@ class Terminals(TerminalLifecycle):
                 f"tail -c +{session.cursor + 1} {q(session.log)} "
                 f"| grep -a -o '__AETHER_DONE_0_[0-9._]*__ [^[:cntrl:]]*' | tail -n 1"
             )
-        return f"cat {q(session.root + '/done_' + str(seq))} 2>/dev/null"
+        done = f"cat {q(session.root + '/done_' + str(seq))} 2>/dev/null"
+        if not self._preserve_existing:
+            return done
+        # Another controller may have cancelled this command before the shell took it (operations.py).
+        token = q(f"{session.root}/start_{seq}")
+        return f'{{ {done} || {{ [ "$(readlink {token} 2>/dev/null)" = {operations.REVOKED} ] && echo {_REVOKED}; }}; }}'
 
     def _probe_result(
         self, session: Session, seq: int | None, out: str
@@ -199,6 +205,8 @@ class Terminals(TerminalLifecycle):
         mark = None if seq is None else _MARK.search(cleaned)
         if mark is not None and int(mark.group(1)) != seq:
             mark = None
+        if mark is None and seq and _REVOKED in cleaned:
+            session.revoked = seq
         if mark is not None:
             suffix = mark.string[mark.end():]
             session.pending_resolution, session.pending_env_names = facts_replay.parse_terminal_receipt(self._command_names, suffix, self._capture_state)
@@ -219,22 +227,24 @@ class Terminals(TerminalLifecycle):
         )
         return self._probe_result(session, seq, res.stdout)
 
-    async def _read(self, session: Session, start: int, end: int) -> str:
+    async def _read(self, session: Session, start: int, end: int, delivered: int = 0) -> str:
         # The bytes travel as base64 and are decoded here: the environment decodes command output as strict UTF-8, so
         # one byte that is not (binary output, or a character cut by head -c) failed the read, and as the cursor did
         # not move every later call reread it and failed too (path-tracing baseline: 21 calls).
         q = shlex.quote
         n = end - start
+        # A consumed completion receipt is recorded in the same exec, so a later controller never shows it again.
+        record = f"; {operations.mark_delivered(session.root, delivered)}" if delivered and self._preserve_existing else ""
         if n <= VIEW_HEAD + VIEW_TAIL:
             res = await run(
-                self._env, f"tail -c +{start + 1} {q(session.log)} | head -c {n} | base64"
+                self._env, f"tail -c +{start + 1} {q(session.log)} | head -c {n} | base64{record}"
             )
             return _text(res.stdout)
         res = await run(
             self._env,
             f"tail -c +{start + 1} {q(session.log)} | head -c {VIEW_HEAD} | base64; "
             f"echo '#SPLIT#'; tail -c +{start + 1} {q(session.log)} "
-            f"| head -c {n} | tail -c {VIEW_TAIL} | base64",
+            f"| head -c {n} | tail -c {VIEW_TAIL} | base64{record}",
         )
         head, _, tail = res.stdout.partition("#SPLIT#")
         head, tail = _text(head), _text(tail)
@@ -266,13 +276,22 @@ class Terminals(TerminalLifecycle):
             raise ValueError("mode must be 'command' or 'keys'")
         note = await terminal_adopt.ensure(self, name)
         session = self._sessions.get(name)
+        if note and self.adoptions[-1]["state"] == "revoked" and (input or interrupt):
+            # Whatever the model sends next may assume the cancelled command ran.
+            return note + "[input not sent: an earlier command was cancelled unrun; decide with that known.]"
+        if session is not None and session.dispatch_unconfirmed and self._preserve_existing:
+            cancelled = await terminal_adopt.resolve(self, session)
+            if cancelled:
+                return note + cancelled
+        if session is not None and session.unseen and session.pending:
+            # The model has not been shown this command (adopted, or its dispatch reply was lost). Show it before
+            # any new input: the model may be re-sending the same command because it does not know it ran.
+            observe = 0.0 if input or interrupt else max(0.0, min(float(wait_s), MAX_WAIT_S, self._clock() - 5))
+            observed = await self._collect(session, time.monotonic(), observe)
+            held = ("\n[input not sent: this command's outcome had not been shown to you yet; "
+                    "use it before sending new input.]") if input or interrupt else ""
+            return note + observed + held
         if session is not None and not session.ready:
-            if session.pending and not session.dispatch_unconfirmed:
-                first = await self._poll(session, session.pending)
-                if first[1] is not None and not first[2]:
-                    observed = await self._collect(session, time.monotonic(), 0, first)
-                    held = "\n[New input was not submitted; use the recorded result before sending new input.]" if input or interrupt else ""
-                    return note + observed + held
             if session.dispatch_unconfirmed and (input or interrupt):
                 return note + f"[input not sent: terminal {name} has an earlier command with unknown effect. Observe it before reusing the terminal.]"
             session = await self._restart(session)
@@ -460,11 +479,18 @@ class Terminals(TerminalLifecycle):
             temporary_marker = f"{marker}.tmp"
             resolution_format, resolution_arg = facts_replay.terminal_receipt(self._command_names, self._capture_state)
             session.pending_resolution = None
+            run_and_receipt = (
+                f"{prompt}{src}; command printf '\\n__AETHER_DONE_%s_%s{'%s' if stages else ''}__ %s\\n{resolution_format}' "
+                f'{session.seq} "$__aether_s" {stages} "$PWD"{resolution_arg} > {shlex.quote(temporary_marker)} '
+                f"&& command mv -f {shlex.quote(temporary_marker)} {shlex.quote(marker)}"
+            )
+            if self._preserve_existing:
+                # The shell runs the command only if it takes the start token first (operations.py), so a dispatch
+                # whose reply was lost can be cancelled for certain instead of staying undecided.
+                run_and_receipt = f"if {operations.start_gate(session.root, session.seq)}; then {run_and_receipt}; fi"
             return await self._write(
                 session,
-                f"{_QUIET}{prompt}{src}; command printf '\\n__AETHER_DONE_%s_%s{'%s' if stages else ''}__ %s\\n{resolution_format}' "
-                f'{session.seq} "$__aether_s" {stages} "$PWD"{resolution_arg} > {shlex.quote(temporary_marker)} '
-                f"&& command mv -f {shlex.quote(temporary_marker)} {shlex.quote(marker)}; {_TRACE_BACK.strip().rstrip(';')}\n",
+                f"{_QUIET}{run_and_receipt}; {_TRACE_BACK.strip().rstrip(';')}\n",
                 cmd=inline,
                 wait=(session.seq, wait_s),
             )
@@ -505,7 +531,7 @@ class Terminals(TerminalLifecycle):
             now = time.monotonic()
             if size != session.last_size:
                 session.last_size, session.grew_at = size, now
-            if mark is not None or not alive:
+            if mark is not None or not alive or (seq is not None and session.revoked == seq):
                 break
             if size != last_size:
                 last_size, stable_since = size, now
@@ -524,7 +550,12 @@ class Terminals(TerminalLifecycle):
                 break
             await asyncio.sleep(delay)
             delay = min(1.0, delay * 1.5)
-        text = clean(await self._read(session, session.cursor, size))
+        text = clean(await self._read(session, session.cursor, size, int(mark.group(1)) if mark is not None else 0))
+        session.unseen = False
+        revoked = mark is None and seq is not None and session.revoked == seq
+        if revoked:
+            session.pending = 0
+            session.dispatch_unconfirmed = False
         if mark is not None:
             session.pending = 0
             session.dispatch_unconfirmed = False
@@ -551,6 +582,9 @@ class Terminals(TerminalLifecycle):
             status = f"[exit {mark.group(2)}{piped} · {elapsed:.1f}s · terminal {name} · cwd {cwd}]"
             if not alive:
                 status += f"\n[terminal {name} exited; it restarts on next use]"
+        elif revoked:
+            status = (f"[command #{seq} in terminal {name} was never started: another controller cancelled it before "
+                      "the shell took it. Nothing from it ran; send it again if it is still needed.]")
         elif not alive:
             status = f"[terminal {name} exited; it restarts on next use]"
         elif session.dispatch_unconfirmed:

@@ -80,7 +80,9 @@ class Session:
     seq: int = 0
     pending: int = 0  # command whose completion marker has not been seen yet
     delivery_announced: int = 0  # last command announced for automatic result delivery
-    dispatch_unconfirmed: bool = False  # an adopted command may have reached the interpreter
+    dispatch_unconfirmed: bool = False  # whether the last command reached the shell is not yet resolved
+    unseen: bool = False  # the pending command's state has not been shown to the model (adopted, or reply lost)
+    revoked: int = 0  # a command another controller cancelled before the shell took it (operations.py)
     exit_receipt: tuple[int, int] | None = None  # command sequence and terminal-reported exit
     last_size: int = 0
     grew_at: float = 0.0  # monotonic time the log last grew
