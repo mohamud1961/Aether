@@ -153,6 +153,34 @@ def test_delivered_command_without_ack_cannot_queue_a_second_effect(tmp_path):
     asyncio.run(go())
 
 
+def test_interactive_input_preserves_the_outstanding_command_on_restart(tmp_path):
+    async def go():
+        first = controller(tmp_path)
+        second = controller(tmp_path)
+        try:
+            command = (
+                "printf ready > prompt; read -r answer; printf '%s' \"$answer\" > accepted; "
+                "while [ ! -e release ]; do sleep .1; done; printf exported > result; (exit 3)"
+            )
+            await first.use(name="job", input=command, wait_s=0)
+            await until(tmp_path / "prompt")
+            await first.use(name="job", input="violet\n", mode="keys", wait_s=0)
+            await until(tmp_path / "accepted")
+            assert (tmp_path / "accepted").read_text() == "violet"
+            outcome = await second.wait_events(["job"], mode="all", wait_s=0)
+            assert outcome["pending"] == ["job"] and not outcome["unknown"]
+            assert outcome["adopted"][0]["sequence"] == 1
+            (tmp_path / "release").touch()
+            complete = await second.wait_events(["job"], mode="all", wait_s=5)
+            assert [(row["sequence"], row["exit"]) for row in complete["completed"]] == [(1, 3)]
+            assert (tmp_path / "result").read_text() == "exported"
+        finally:
+            (tmp_path / "release").touch()
+            await first.close()
+
+    asyncio.run(go())
+
+
 def test_dead_shell_with_no_receipt_is_observed_before_replacement(tmp_path):
     async def go():
         first = controller(tmp_path)

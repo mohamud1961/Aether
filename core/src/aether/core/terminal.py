@@ -113,13 +113,19 @@ class Terminals(TerminalLifecycle):
         log = q(session.log)
         # A done_<seq> already on disk (stale, or planted before the send) must not complete this command.
         clear = [f"rm -f {q(f'{session.root}/done_{wait[0]}')} || exit 7"] if wait is not None and wait[0] else []
+        # Preserve the last command's dispatch record when the user types into
+        # it or interrupts it. The input itself has no command sequence.
+        input_name = "input" if self._preserve_existing and wait is None else "pending"
+        source = q(f"{session.root}/{input_name}")
         steps = clear + ([atomic_write(*cmd, 4)] if cmd else []) + [
-            atomic_write(f"{session.root}/pending", text.encode(), 5),
+            atomic_write(f"{session.root}/{input_name}", text.encode(), 5),
             f"{alive_test(session.pid)} && [ -p {q(session.fifo)} ] || {{ echo dead; exit 3; }}",
-            f"cat {q(session.root + '/pending')} > {q(session.fifo)} || exit 6",
+            f"cat {source} > {q(session.fifo)} || exit 6",
         ]
         if self._preserve_existing and wait is not None and wait[0]:
             steps = terminal_adopt.with_delivery_record(steps, session.root, wait[0])
+        if input_name == "input":
+            steps.append(f"rm -f {source}")
         if wait is not None:
             seq, ticks = wait[0], int(max(0.0, min(wait[1], 3.0)) / 0.1)
             # The receipt is looked for before the size is taken, as in _poll.
