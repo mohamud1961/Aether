@@ -12,9 +12,11 @@ Everything here comes from the sandbox, never from controller memory:
   current start time to equal ``birth``, so a reused PID is never adopted.
 - ``mode`` (pty/bash) is written at launch when existing directories are preserved. Without it, adoption is refused.
 - ``pending`` holds the last command line written to the shell. Its sequence number is parsed from the completion
-  receipt it carries. ``sent_<seq>`` is written in the same container exec after the line reached the shell's input,
-  and holds the log offset where that command's output starts.
+  receipt it carries. The pre-write log offset is saved under ``claim_<seq>``. ``sent_<seq>`` carries the same
+  offset and is written in the same container exec after the line reached the shell's input.
 - ``done_<seq>`` is the shell's own completion receipt.
+- ``claim_<seq>`` reserves a command before staging. A claim newer than
+  ``pending`` leaves dispatch unconfirmed until its completion is observed.
 
 The adopted state of the latest dispatched command is one of: ``completed`` (receipt present, with its exit),
 ``running`` (delivered, no receipt, shell alive), ``dispatch_unconfirmed`` (written but never confirmed delivered),
@@ -41,7 +43,9 @@ def with_delivery_record(steps: list[str], root: str, seq: int) -> list[str]:
     the line reached the shell's input, and holds the log offset taken before it, where the output begins."""
     q = shlex.quote
     sent = q(f"{root}/sent_{seq}")
-    return [*steps[:-1], f"__aether_at=$(wc -c < {q(root + '/out.log')}) || exit 6; {steps[-1]}",
+    offset = q(f"{root}/claim_{seq}/offset")
+    return [*steps[:-1], f"__aether_at=$(wc -c < {q(root + '/out.log')}) || exit 6; "
+            f"printf '%s\\n' \"$__aether_at\" > {offset}.tmp && mv -f {offset}.tmp {offset} || exit 8; {steps[-1]}",
             f"printf '%s\\n' \"$__aether_at\" > {sent}.tmp && mv -f {sent}.tmp {sent} || exit 8"]
 
 
@@ -90,32 +94,41 @@ async def adopt(terminals, name: str) -> tuple[Session, dict] | None:
     read = await run(
         terminals._env,
         f"cd {q(root)} || exit 4; cat pid; echo __SEP__; cat birth; echo __SEP__; cat mode 2>/dev/null; "
-        f"echo __SEP__; cat pending 2>/dev/null; echo __SEP__; wc -c < out.log",
+        "echo __SEP__; cat pending 2>/dev/null; echo __SEP__; wc -c < out.log; "
+        "echo __SEP__; printf '%s\\n' claim_*",
     )
     parts = read.stdout.split("__SEP__\n")
-    if read.code != 0 or len(parts) != 5 or not parts[0].strip().isdigit():
+    if read.code != 0 or len(parts) != 6 or not parts[0].strip().isdigit():
         raise RuntimeError(f"terminal {name}: its control directory {root} is incomplete; ownership is unverified")
-    pid, birth, mode, pending_text, size = int(parts[0]), parts[1].strip(), parts[2].split(), parts[3], parts[4]
+    pid, birth, mode = int(parts[0]), parts[1].strip(), parts[2].split()
+    pending_text, size, claims = parts[3:]
     if len(mode) != 2 or mode[0] not in ("pty", "nopty") or mode[1] not in ("bash", "sh"):
         raise RuntimeError(f"terminal {name}: no launch mode record in {root}; ownership is unverified")
     now = await run(terminals._env, f"{alive_test(pid)} && {{ {_BIRTH.format(pid=pid)}; }} || echo __DEAD__")
     alive = now.code == 0 and "__DEAD__" not in now.stdout
     if alive and now.stdout.strip() != birth:
         raise RuntimeError(f"terminal {name}: process {pid} is not the shell recorded in {root}; not adopted")
-    seq = parse_seq(pending_text)
-    sent = done = None
+    latest_claim = max((int(line[6:]) for line in claims.splitlines() if line.startswith("claim_")
+                        and line[6:].isascii() and line[6:].isdigit()), default=0)
+    seq = max(parse_seq(pending_text) or 0, latest_claim) or None
+    sent = done = offset = None
     if seq is not None:
         records = await run(
             terminals._env,
-            f"cd {q(root)} && cat sent_{seq} 2>/dev/null; echo __SEP__; cat done_{seq} 2>/dev/null; true",
+            f"cd {q(root)} || exit 4; cat sent_{seq} 2>/dev/null; echo __SEP__; "
+            f"cat claim_{seq}/offset 2>/dev/null; echo __SEP__; cat done_{seq} 2>/dev/null; true",
         )
-        sent_text, _, done_text = records.stdout.partition("__SEP__\n")
+        parts = records.stdout.split("__SEP__\n", 2)
+        if records.code != 0 or len(parts) != 3:
+            raise RuntimeError(f"terminal {name}: command #{seq} records could not be read")
+        sent_text, offset_text, done_text = parts
         sent = sent_text.strip() or None
+        offset = (sent or offset_text).strip()
         done = done_text.strip() or None
     state, exit_status = state_of(seq, sent, done, alive)
     session = Session(name, root, pid, mode[0] == "pty", bash=mode[1] == "bash", grew_at=time.monotonic())
     session.seq = seq or 0
-    session.cursor = int(sent) if sent and sent.isdigit() else int(size.strip() or 0)
+    session.cursor = int(offset) if offset and offset.isdigit() else int(size.strip() or 0)
     session.last_size = session.cursor
     if state in ("running", "completed") or (state == "dispatch_unconfirmed" and alive):
         # The normal observation path reads the receipt (now or later) and delivers the output from the recorded

@@ -13,6 +13,7 @@ import asyncio
 import re
 import shlex
 import time
+import uuid
 
 from .env import CONTROL_DIR, Environment, alive_test, run
 from . import facts_probe, facts_replay, terminal_adopt
@@ -50,6 +51,10 @@ _XSTATE = '__aether_x=; [ "${-#*x}" = "$-" ] || __aether_x=1; set +x; '
 _QUIET = "{ " + _XSTATE + "} 2>/dev/null; "
 _TRACE_BACK = '{ [ -z "$__aether_x" ] || set -x; } 2>/dev/null; '
 _CAPTURE = "{ __aether_s=$?; " + _XSTATE + "} 2>/dev/null"  # re-read: the command may have run set -x or set +x
+
+
+class _TerminalSequenceClaimed(RuntimeError):
+    """Another controller reserved this command sequence in the sandbox."""
 
 
 class Terminals(TerminalLifecycle):
@@ -113,6 +118,7 @@ class Terminals(TerminalLifecycle):
         """
         q = shlex.quote
         log = q(session.log)
+        tracks_dispatch = self._preserve_existing and wait is not None and wait[0] != 0
         # A done_<seq> already on disk (stale, or planted before the send) must not complete this command.
         clear = [f"rm -f {q(f'{session.root}/done_{wait[0]}')} || exit 7"] if wait is not None and wait[0] else []
         # Preserve the last command's dispatch record when the user types into
@@ -124,8 +130,12 @@ class Terminals(TerminalLifecycle):
             f"{alive_test(session.pid)} && [ -p {q(session.fifo)} ] || {{ echo dead; exit 3; }}",
             f"cat {source} > {q(session.fifo)} || exit 6",
         ]
-        if self._preserve_existing and wait is not None and wait[0]:
+        if tracks_dispatch:
             steps = terminal_adopt.with_delivery_record(steps, session.root, wait[0])
+            claim = q(f"{session.root}/claim_{wait[0]}")
+            # The in-memory lock does not coordinate resumed controllers. Take
+            # the sequence before clearing its receipt or touching the FIFO.
+            steps.insert(0, f"mkdir {claim} 2>/dev/null || {{ if [ -d {claim} ]; then exit 10; fi; exit 11; }}")
         if input_name == "input":
             steps.append(f"rm -f {source}")
         if wait is not None:
@@ -137,10 +147,11 @@ class Terminals(TerminalLifecycle):
                 f"sleep 0.1; i=$((i+1)); done; printf '%s\\n' \"$m\"; "
                 f"{alive_test(session.pid)} && echo __ALIVE__ || echo __DEAD__; echo __SIZE__; wc -c < {log} 2>/dev/null; true"
             )
-        tracks_dispatch = self._preserve_existing and wait is not None and wait[0] != 0
         if tracks_dispatch:
             session.dispatch_unconfirmed = True
         res = await run(self._env, "; ".join(steps), timeout_s=20)
+        if tracks_dispatch and res.code == 10:
+            raise _TerminalSequenceClaimed(session.name)
         if res.code == 3 and "dead" in res.stdout:
             if tracks_dispatch:
                 session.dispatch_unconfirmed = False  # failure preceded the FIFO write
@@ -315,6 +326,9 @@ class Terminals(TerminalLifecycle):
             note += "[interrupt requested; supplied input was not submitted because shell readiness is unconfirmed]\n"
         try:
             first = await self._send(session, input, mode, interrupt, wait_s)
+        except _TerminalSequenceClaimed:
+            self._sessions.pop(name, None)
+            return note + f"[input not sent: terminal {name} has a newer command claim. Observe it before sending input.]"
         except TerminalGone as gone:
             # It died between calls (killed, `exit`, its files deleted). The input never reached it, so it goes
             # to a fresh terminal; left as it was, every later call failed the same way (V3: 45 such errors).
@@ -394,7 +408,11 @@ class Terminals(TerminalLifecycle):
             # read) swallow the marker, so the command looked "still running" until wait_s ran out.
             body = input if input.endswith("\n") else input + "\n"
             body = _TRACE_BACK + body  # on line 1, so the shell's line numbers for the command are unchanged
-            cmd_file = f"{session.root}/cmd_{session.seq}.sh"
+            payload = body.encode()
+            # A large transfer precedes the claim. Give it a private name so
+            # it cannot replace the script belonging to a claimed sequence.
+            staging = f"-{uuid.uuid4().hex}" if self._preserve_existing and len(payload) > INLINE_BYTES else ""
+            cmd_file = f"{session.root}/cmd_{session.seq}{staging}.sh"
             src, stages = f". {shlex.quote(cmd_file)}; {_CAPTURE}", ""
             prompt = ""
             if session.pty and session.bash:
@@ -434,9 +452,9 @@ class Terminals(TerminalLifecycle):
             # Write the completion receipt outside stdout, atomically AFTER
             # the original command returns to the shell. A program printing a
             # completion-looking line cannot forge command completion.
-            inline = (cmd_file, body.encode())
-            if len(inline[1]) > INLINE_BYTES:  # one argv string is capped at 128 KiB on Linux
-                await put_bytes(self._env, inline[1], cmd_file)
+            inline = (cmd_file, payload)
+            if len(payload) > INLINE_BYTES:  # one argv string is capped at 128 KiB on Linux
+                await put_bytes(self._env, payload, cmd_file)
                 inline = None
             marker = f"{session.root}/done_{session.seq}"
             temporary_marker = f"{marker}.tmp"

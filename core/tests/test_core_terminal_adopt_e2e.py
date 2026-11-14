@@ -138,6 +138,34 @@ def test_an_earlier_receipt_never_completes_the_next_command(tmp_path):
     asyncio.run(go())
 
 
+@pytest.mark.parametrize("large_script", [False, True])
+def test_stale_controller_cannot_reuse_a_claimed_command_sequence(tmp_path, large_script):
+    async def go():
+        first, second = controller(tmp_path), controller(tmp_path)
+        try:
+            assert "[exit 0" in await first.use(name="job", input="true", wait_s=5)
+            prior = await second.wait_events(["job"], mode="all", wait_s=0)
+            assert [(row["sequence"], row["exit"]) for row in prior["completed"]] == [(1, 0)]
+            assert "still running" in await first.use(name="job", input=GATED, wait_s=0)
+            await until(tmp_path / "marker")
+            stale = "printf stale >> output"
+            if large_script:
+                stale += "\n#" + "x" * 140_000
+            out = await second.use(name="job", input=stale, wait_s=0)
+            assert "input not sent" in out
+            (tmp_path / "release").touch()
+            recovered = await second.wait_events(["job"], mode="all", wait_s=5)
+            assert [(row["sequence"], row["exit"]) for row in recovered["completed"]] == [(2, 3)]
+            assert (tmp_path / "output").read_text() == "once"
+            assert "[exit 0" in await second.use(name="job", input="printf after > next", wait_s=5)
+            assert (tmp_path / "next").read_text() == "after"
+        finally:
+            (tmp_path / "release").touch()
+            await first.close()
+
+    asyncio.run(go())
+
+
 def test_written_but_unconfirmed_command_is_reported_and_never_run(tmp_path):
     async def go():
         first = controller(tmp_path)
@@ -166,7 +194,7 @@ def test_written_but_unconfirmed_command_is_reported_and_never_run(tmp_path):
 def test_delivered_command_without_ack_cannot_queue_a_second_effect(tmp_path):
     async def go():
         first = controller(tmp_path)
-        assert "still running" in await first.use(name="export", input=GATED, wait_s=0.3)
+        assert "still running" in await first.use(name="export", input="echo pre-delivery-gap; " + GATED, wait_s=0.3)
         shell = first._sessions["export"]
         await until(tmp_path / "marker")
         # Reproduce the visible state at the gap between FIFO delivery and acknowledgement.
@@ -178,6 +206,7 @@ def test_delivered_command_without_ack_cannot_queue_a_second_effect(tmp_path):
             seen = await second.wait_events(["export"], mode="all", wait_s=5)
             assert "input not sent" in note
             assert [(r["sequence"], r["exit"]) for r in seen["completed"]] == [(1, 3)]
+            assert "pre-delivery-gap" in note + seen["completed"][0]["observation"]
             assert (tmp_path / "output").read_bytes() == b"once"
         finally:
             (tmp_path / "release").touch()
