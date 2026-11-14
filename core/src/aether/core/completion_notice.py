@@ -4,7 +4,7 @@ Off by default (``CoreConfig.completion_notices``). Adapted from Claude Code's b
 plan's "attach other relevant results already available" rule for selected waits: a command left running in a named
 terminal finishes while the model works elsewhere; without a notice the model learns this only by polling or waiting.
 
-After each tool result, Core checks the shell's own completion receipt (``done_<seq>``) for every terminal with an
+At the end of a model tool packet, Core checks the shell's own completion receipt (``done_<seq>``) for every terminal with an
 outstanding command and appends one line per newly finished command: its terminal, sequence and exit. The output is
 not consumed here; it is delivered once, as before, by the next use of that terminal or a ``terminal_wait``. Each
 command is noticed at most once. A failed check adds nothing and is recorded in the trace.
@@ -24,7 +24,7 @@ LINE = ("[terminal {name}: command #{seq} finished with exit {exit} (the shell's
 async def finished(terminals, seen: set[tuple[str, int]]) -> list[dict]:
     """Outstanding commands whose completion receipt now exists and that were not noticed before."""
     waiting = [(name, s) for name, s in terminals._sessions.items()
-               if s.ready and s.pending and (name, s.pending) not in seen]
+               if s.ready and s.pending and (s.root, s.pending) not in seen]
     if not waiting:
         return []
     script = "; ".join(
@@ -42,17 +42,17 @@ async def finished(terminals, seen: set[tuple[str, int]]) -> list[dict]:
             continue
         name, session = waiting[int(index)]
         if int(mark.group(1)) == session.pending:
-            found.append({"name": name, "sequence": session.pending, "exit": int(mark.group(2))})
+            found.append({"name": name, "owner": session.root, "sequence": session.pending, "exit": int(mark.group(2))})
     return found
 
 
-async def after_tool(s) -> str:
+async def before_model(s) -> str:
     """Notice lines for the tool result just produced (empty when nothing newly finished)."""
     if not s.config.completion_notices:
         return ""
     seen = s.result.extras.setdefault("completion_notices_seen", [])
     try:
-        found = await finished(s.terminals, {(row["name"], row["sequence"]) for row in seen})
+        found = await finished(s.terminals, {(row["owner"], row["sequence"]) for row in seen})
     except Exception as exc:  # substrate failure: no notice, recorded honestly
         s.trace("completion_notice_error", error=f"{type(exc).__name__}: {exc}")
         return ""
