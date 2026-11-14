@@ -124,6 +124,7 @@ class CoreConfig:
     env_map: bool = False  # opt-in: repositories and listening services, measured once at start (env_map)
     completion_notices: bool = False  # opt-in: one line when a background terminal command finishes (completion_notice)
     workspace_brief: bool = False
+    workspace_search: bool = False
 
     def __post_init__(self) -> None:
         if self.facts_pull and not self.managed_facts:
@@ -358,6 +359,10 @@ async def run_agent(
 
                 s.mcp = mcp.Mcp(s.env, config.control_dir, list(config.mcp_servers))
                 s.tools = [*s.tools, mcp.tool(list(config.mcp_servers))]
+            if config.workspace_search and config.role == "worker":
+                from . import workspace_search
+
+                s.tools.append(workspace_search.TOOL)
             if config.image_region and see:
                 s.tools = image_region.with_region(s.tools)
             if config.image_compare and see:
@@ -832,6 +837,10 @@ async def _save(s: _Session, out: str) -> str:
 
 
 async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, bool]:
+    if name == "search_workspace":
+        from . import workspace_search
+
+        return await workspace_search.search(s.env, s.workdir, s.config.control_dir, args), False
     if name == "read_history" and s.clm:
         return s.clm.read_history(
             args["message_id"], args.get("offset", 0), args.get("limit", 12000)
