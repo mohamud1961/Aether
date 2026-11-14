@@ -16,7 +16,9 @@ Measured, bounded, read-only, never interpreted:
   command under a timeout; read commands do not run hooks. A refusal (for example dubious ownership) is reported as
   git's own first error line. Git reads tracked regular files to compare them; it does not open FIFOs or devices.
 - Listening TCP sockets from ``/proc/net/tcp{,6}``, with the owning process name when its descriptors are visible
-  (link targets are read with ``find -printf %l``, never followed).
+  (link targets are read with ``find -printf %l``, never followed). As root every in-sandbox owner is visible, so
+  an ownerless listener belongs to the runtime outside the sandbox (e.g. a container DNS resolver) and is omitted;
+  as another user it is shown as "owner not visible".
 
 The note is placed in the task message after the start copy is taken, so nothing here runs before originals are
 preserved. A failed probe adds nothing and is recorded in the trace.
@@ -65,6 +67,7 @@ done | head -n {max_listen}
 if [ -r /proc/net/tcp ]; then
   find -P /proc/[0-9]*/fd -maxdepth 1 -lname 'socket:\[*' -printf 'S\t%h\t%l\n' 2>/dev/null | head -n 4000
 fi
+printf 'U\t%s\n' "$(id -u)"
 printf 'done\n'
 """
 
@@ -84,12 +87,15 @@ def parse(stdout: str, comm: dict[str, str]) -> tuple[list[str], dict]:
     repos: dict[str, dict[str, str]] = {}
     listen: list[tuple[str, str, str]] = []
     owners: dict[str, str] = {}
+    uid = None
     for line in stdout.splitlines():
         fields = line.split("\t")
         if fields[0] == "R" and len(fields) == 4:
             repos.setdefault(fields[1], {})[fields[2]] = fields[3].strip()
         elif fields[0] == "L" and len(fields) == 4:
             listen.append((fields[1], fields[2], fields[3]))
+        elif fields[0] == "U" and len(fields) == 2:
+            uid = fields[1].strip()
         elif fields[0] == "S" and len(fields) == 3 and fields[2].startswith("socket:["):
             owners.setdefault(fields[2][8:-1], fields[1].split("/")[2])
     lines = []
@@ -107,14 +113,18 @@ def parse(stdout: str, comm: dict[str, str]) -> tuple[list[str], dict]:
             f"{facts.get('reflog') or 0}; remotes: {facts.get('remotes') or 'none'}; "
             f"changed or untracked paths: {facts.get('changed') or 0}"
         )
-    sockets = []
+    sockets, outside = [], 0
     for proto, local, inode in listen[:MAX_LISTEN]:
         pid = owners.get(inode)
+        if pid is None and uid == "0":
+            outside += 1  # root sees every in-sandbox owner: this socket belongs to the runtime outside the sandbox
+            continue
         name = comm.get(pid, "") if pid else ""
         sockets.append(_address(proto, local) + (f" ({name}, pid {pid})" if name else " (owner not visible)"))
     if sockets:
         lines.append("- listening TCP: " + ", ".join(sockets))
-    return lines, {"repos": len(repos), "listening": len(listen), "owned": sum(1 for _, _, i in listen if i in owners)}
+    return lines, {"repos": len(repos), "listening": len(listen), "owned": sum(1 for _, _, i in listen if i in owners),
+                   "outside_sandbox": outside}
 
 
 async def take(env: Environment, workdir: str) -> tuple[str, dict]:
