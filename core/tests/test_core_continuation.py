@@ -103,6 +103,7 @@ def _agent(tmp_path, monkeypatch, calls, *, fail=None, environ=None, extras=None
         monkeypatch.delenv(name, raising=False)
     agent = object.__new__(adapter.AetherCoreAgent)
     agent.logs_dir = tmp_path / "logs"
+    agent.logs_dir.mkdir(exist_ok=True)  # Harbor creates the log directory before invoking the adapter.
     agent._agent_timeout_sec = 60.0
     agent._extra_env = {
         adapter.REVIEW_ENV: "off",

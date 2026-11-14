@@ -69,7 +69,13 @@ def run_case(verdict,*,unbound=False,missing_manifest=False,writable=False,
     }
     # Execute actual _status and _finding (not a hand-written reconstruction),
     # followed by actual at_finish. Stub only external model/clone functions.
-    src=ast.Module(body=[original("_finding"),original("_status"),original("at_finish")],type_ignores=[])
+    handback_env = next(
+        node for node in TREE.body if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "HANDBACK_ENV" for target in node.targets)
+    )
+    ns["os"] = types.SimpleNamespace(environ={})
+    src=ast.Module(body=[handback_env, original("_handback"), original("_finding"),
+                         original("_status"), original("at_finish")],type_ignores=[])
     ast.fix_missing_locations(src)
     exec(compile(src,str(FILE),"exec"),ns)
     return asyncio.run(ns["at_finish"](session)),session
