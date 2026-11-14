@@ -35,7 +35,8 @@ BROWSER_ENV = "AETHER_CORE_BROWSER"
 BROWSER_IMAGE = "aether-browser:1"
 GRACE_S = 120
 SCREENSHOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}\.png")
-SCREENSHOT_MAX = 8_000_000
+class InvalidScreenshot(ValueError):
+    """The sidecar confirmed that this run did not produce a usable image."""
 
 _PUBLISH_INPUT = """import ctypes, errno, os, shutil, sys
 stage, target = sys.argv[1:]
@@ -65,8 +66,9 @@ TOOL = {
             "installed. Files listed in `files` are copied from this container to the same paths there first (a "
             "snapshot; changes there are not copied back). Each call is a fresh Python process; print what you need. "
             "Returns a bounded stdout/stderr preview and the command status. A run that outlives wait_s keeps "
-            "running; its result is shown at the next browser call, and identical code attaches to it instead of "
-            "running again. To see a screenshot, save it under /tmp and pass its PNG basename as screenshot."
+            "running. If it has a screenshot, repeat the call to collect it. Other results are shown at the next "
+            "browser call. An identical pending call attaches to the run. To see a screenshot, save it under /tmp "
+            "and pass its PNG basename as screenshot."
         ),
         "parameters": {
             "type": "object",
@@ -105,6 +107,10 @@ def with_tool(definitions: list[dict[str, Any]], persistent: bool = False) -> li
             " Each call is a fresh Python process; print what you need." + SESSION_NOTE))
         tool = {**TOOL, "function": function}
     return [*definitions[:-1], tool, definitions[-1]]
+
+
+class InvalidScreenshot(ValueError):
+    """The sidecar confirmed that this run did not produce a usable image."""
 
 
 class Sidecar:
@@ -175,27 +181,34 @@ class Sidecar:
             if not published:
                 await self.host(["docker", "exec", self.name, "rm", "-rf", "--", stage], 10)
 
-    async def screenshot(self, name: str) -> tuple[str, str]:
-        target = f"/tmp/{name}"
+    async def screenshot(self, path: str, name: str) -> tuple[str, str]:
         code, info, _ = await self.host(
             ["docker", "exec", self.name, "sh", "-c",
-             'test -f "$1" && test ! -L "$1" && stat -c %s -- "$1" && sha256sum < "$1"',
-             "core-browser-image", target], 5,
+             'if [ ! -f "$1" ] || [ -L "$1" ]; then echo NO_IMAGE; else stat -c %s -- "$1" && sha256sum < "$1"; fi',
+             "core-browser-image", path], 5,
         )
+        if code:
+            raise OSError("browser screenshot could not be inspected")
         fields = info.split()
-        if code or len(fields) < 2 or not fields[0].isdigit() or not 0 < int(fields[0]) <= SCREENSHOT_MAX:
-            raise ValueError("browser screenshot missing, nonregular or too large")
+        if fields == ["NO_IMAGE"] or (fields and fields[0].isdigit()
+                                      and not 0 < int(fields[0]) <= browser_ops.SCREENSHOT_MAX):
+            raise InvalidScreenshot("browser screenshot missing, nonregular or too large")
+        if len(fields) < 2 or not fields[0].isdigit():
+            raise OSError("browser screenshot metadata was unavailable")
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "capture.png"
-            status, _, _ = await self.host(["docker", "cp", f"{self.name}:{target}", str(path)], 10)
-            if status or path.is_symlink() or not path.is_file() or path.stat().st_size != int(fields[0]):
-                raise ValueError("browser screenshot transfer could not be confirmed")
-            data = path.read_bytes()
+            capture = Path(directory) / "capture.png"
+            status, _, _ = await self.host(["docker", "cp", f"{self.name}:{path}", str(capture)], 10)
+            if status or capture.is_symlink() or not capture.is_file() or capture.stat().st_size != int(fields[0]):
+                raise OSError("browser screenshot transfer could not be confirmed")
+            data = capture.read_bytes()
         if hashlib.sha256(data).hexdigest() != fields[1]:
             raise ValueError("browser screenshot changed while being copied")
         if not data.startswith(b"\x89PNG\r\n\x1a\n"):
-            raise ValueError("browser screenshot is not PNG data")
-        return images.encode(data, f"browser screenshot {name}")
+            raise InvalidScreenshot("browser screenshot is not PNG data")
+        try:
+            return images.encode(data, f"browser screenshot {name}")
+        except ValueError as error:
+            raise InvalidScreenshot(str(error)) from error
 
 
 Factory = Callable[[Environment], Awaitable[str]]  # the task container's proven id
@@ -251,6 +264,8 @@ class BrowserSession:
                 # A retry of code already running and not yet shown: attach to it, never run it twice.
                 head = f"[this call matches browser run #{same}, started earlier and not yet shown; not run again]\n"
             else:
+                if screenshot and any(run["screenshot"] == screenshot for run in car.runs.open.values()):
+                    return earlier + "[an earlier browser run still owns this screenshot name; use a different name]"
                 for path in args.get("files") or []:
                     await car.copy(path)
                 if screenshot:
@@ -260,18 +275,23 @@ class BrowserSession:
                 # The wait window is not the run's lifetime: a run that outlives it keeps going until it ends or the
                 # task's own time runs out, and its result is shown later.
                 life = max(wait, remaining_s - 10)
-                same, head = await car.runs.launch(str(args.get("code", "")), life, call_key), ""
+                same = await car.runs.launch(str(args.get("code", "")), life, call_key, screenshot)
+                head = ""
             result = await car.runs.collect(same, wait)
             if result is None:
-                return earlier + head + (
-                    f"[browser run #{same} still running after {wait:g} s. Its result is shown at the next browser "
-                    "call; identical code attaches to it instead of running again.]")
+                follow_up = ("Repeat this call to collect its screenshot." if screenshot else
+                             "Its result is shown at the next browser call.")
+                return earlier + head + f"[browser run #{same} still running after {wait:g} s. {follow_up}]"
             out = earlier + head + result
-            if screenshot:
+            if screenshot and same in car.runs.open:
                 try:
-                    self.image = await car.screenshot(screenshot)
+                    self.image = await car.screenshot(f"{car.runs.ops_dir}/shot_{same}.png", screenshot)
+                except InvalidScreenshot as error:
+                    out += f"\n[browser screenshot unavailable: {error}]"
                 except (OSError, RuntimeError, ValueError) as error:
-                    return f"{out}\n[browser screenshot unavailable: {error}]"
+                    return (earlier + head + f"[browser screenshot unavailable: {error}. "
+                            "Repeat this call to collect the result from the existing run.]")
+                del car.runs.open[same]
         except Exception as exc:
             return f"error: browser unavailable ({type(exc).__name__}: {str(exc)[:300]})"
         return out
@@ -289,7 +309,7 @@ class BrowserSession:
                     continue
                 if token is None:
                     continue
-            if run["key"] == call_key:
+            if run["key"] == call_key or run["screenshot"]:
                 continue
             result = await runs.collect(n, 0)
             if result is not None:

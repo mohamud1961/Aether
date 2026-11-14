@@ -11,7 +11,10 @@ kill point the code runs at most once, at least once within a few turns, and its
 """
 
 import asyncio
+import base64
+import io
 import os
+from pathlib import Path
 import shlex
 import shutil
 import subprocess
@@ -27,7 +30,8 @@ TURNS = 8
 async def local_host(argv, timeout_s):
     """``docker exec [-d] NAME cmd...`` and ``docker cp SRC NAME:DST`` as local processes."""
     if argv[:2] == ["docker", "cp"]:
-        shutil.copyfile(argv[2], argv[3].split(":", 1)[1])
+        paths = [arg.split(":")[-1] for arg in argv[2:]]
+        shutil.copyfile(*paths)
         return 0, "", ""
     assert argv[:2] == ["docker", "exec"], argv
     rest = argv[2:]
@@ -144,3 +148,51 @@ def test_without_tracking_the_sweep_finds_a_second_run(tmp_path, monkeypatch):
 
 def test_runs_record_their_ops_in_the_declared_directory():
     assert browser_ops.OPS_DIR == "/tmp/.aether-ops"
+
+
+def test_screenshot_transfer_failure_retries_the_image_without_repeating_the_action(tmp_path):
+    if not browser.images.available():
+        pytest.skip("requires image support")
+    from PIL import Image
+
+    effects = tmp_path / "effects"
+    filename = tmp_path.name + ".png"
+    code = (
+        f"open({str(effects)!r}, 'a').write('x')\n"
+        "from PIL import Image\n"
+        f"Image.new('RGB', (25, 25), 'red').save('/tmp/{filename}')\n"
+        "print('effect-complete')"
+    )
+
+    async def go():
+        lost = False
+
+        async def lose_first_download(argv, timeout_s):
+            nonlocal lost
+            if not lost and argv[:2] == ["docker", "cp"] and ":" in argv[2]:
+                lost = True
+                return 1, "", "transfer lost"
+            return await local_host(argv, timeout_s)
+
+        session = browser.BrowserSession(None, None, host=lose_first_download)
+        car = browser.Sidecar("c" * 64, lose_first_download)
+        car.started, car.runs.ops_dir = True, str(tmp_path / "ops")
+        session.sidecar = car
+        args = {"code": code, "screenshot": filename, "wait_s": 10}
+        first = await session.use(args, 30)
+        # The model can continue interacting with the browser between retries.
+        Image.new("RGB", (25, 25), "blue").save(Path("/tmp", filename))
+        second = await session.use(args, 30)
+        return lost, first, second, session.image
+
+    try:
+        lost, first, second, image = asyncio.run(go())
+        assert lost and "screenshot unavailable" in first
+        assert effects.read_text() == "x"  # An independent file records each execution of the code.
+        assert "effect-complete" not in first and "effect-complete" in second
+        assert image and image[1].startswith("data:image/")
+        data = base64.b64decode(image[1].split(",", 1)[1])
+        with Image.open(io.BytesIO(data)) as received:
+            assert received.convert("RGB").getpixel((0, 0)) == (255, 0, 0)
+    finally:
+        Path("/tmp", filename).unlink(missing_ok=True)

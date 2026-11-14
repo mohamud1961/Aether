@@ -11,6 +11,7 @@ Now each call is run ``<n>`` with these records in ``OPS_DIR`` in the sidecar:
 - ``start_<n>``   the start token (symlink): the runner takes it as ``run`` and runs the code only if that succeeded;
   Core takes it as ``revoked`` when it lost the launch and must know for certain that the code never ran.
 - ``out_<n>``     everything the code printed.
+- ``shot_<n>.png`` a copy of the requested image, published before reporting exit.
 - ``done_<n>``    its exit status, written last.
 
 The runner is detached and bounded by its own ``timeout``, so a host wait that ends early loses nothing: the result
@@ -31,10 +32,17 @@ from .clone import HostRun
 
 OPS_DIR = "/tmp/.aether-ops"
 POLL_SLICE_S = 10
+SCREENSHOT_MAX = 8_000_000
+_SAVE_SCREENSHOT = (
+    'src="/tmp/$4"; if [ -n "$4" ] && [ -f "$src" ] && [ ! -L "$src" ]; then '
+    'bytes=$(stat -c %s -- "$src") && [ "$bytes" -le "$5" ] && '
+    'cp --no-dereference -- "$src" "$1/shot_$2.tmp" && mv -- "$1/shot_$2.tmp" "$1/shot_$2.png"; fi; '
+)
 _LAUNCH = (
     'cd "$1" || exit 4; echo $$ > "pid_$2"; command ln -s run "start_$2" 2>/dev/null || exit 0; cd /tmp; '
-    'PYTHONPATH="$1${PYTHONPATH:+:$PYTHONPATH}" timeout -k 5 "$3" python3 "$1/code_$2.py" > "$1/out_$2" 2>&1; echo $? > "$1/done_$2.tmp"; '
-    'mv -f "$1/done_$2.tmp" "$1/done_$2"'
+    'PYTHONPATH="$1${PYTHONPATH:+:$PYTHONPATH}" timeout -k 5 "$3" python3 "$1/code_$2.py" > "$1/out_$2" 2>&1; rc=$?; '
+    + _SAVE_SCREENSHOT
+    + 'echo "$rc" > "$1/done_$2.tmp"; mv -f "$1/done_$2.tmp" "$1/done_$2"'
 )
 _POLL = (
     'cd "$1" 2>/dev/null || { echo GONE; exit 0; }; i=0; '
@@ -77,12 +85,12 @@ class Runs:
         if status != 0:
             raise OSError(f"browser module {module} could not be installed: {err.strip()[:200]}")
 
-    async def launch(self, code: str, life_s: float, call_key: str) -> int:
+    async def launch(self, code: str, life_s: float, call_key: str, screenshot: str | None = None) -> int:
         """Copy the code in and start its detached runner. Tracked from before the first write, so a lost reply leaves
         the run to be resolved by the token, never re-run."""
         self.seq += 1
         n = self.seq
-        self.open[n] = {"key": call_key, "launched": False}
+        self.open[n] = {"key": call_key, "launched": False, "screenshot": screenshot}
         status, _, err = await self._sh('mkdir -p "$1"', self.ops_dir)
         if status != 0:
             del self.open[n]  # nothing was written for this run
@@ -93,7 +101,8 @@ class Runs:
             status, _, err = await self.host(["docker", "cp", str(source), f"{self.name}:{self.ops_dir}/code_{n}.py"], 60)
         if status != 0:
             raise OSError(f"browser code could not be copied in: {err.strip()[:200]}")
-        status, _, err = await self._sh(_LAUNCH, self.ops_dir, str(n), str(max(1, int(life_s))), detach=True)
+        status, _, err = await self._sh(_LAUNCH, self.ops_dir, str(n), str(max(1, int(life_s))),
+                                        screenshot or "", str(SCREENSHOT_MAX), detach=True)
         if status != 0:
             raise RuntimeError(f"browser run could not be launched: {err.strip()[:200]}")
         self.open[n]["launched"] = True
@@ -114,7 +123,8 @@ class Runs:
 
     async def collect(self, n: int, wait_s: float) -> str | None:
         """Wait up to ``wait_s`` for run ``n``. Its output and status once finished (it is then no longer open), a
-        statement when its runner is gone without a result, or None while it still runs."""
+        statement when its runner is gone without a result, or None while it still runs. A completed run with a
+        requested screenshot stays pending until the caller collects the whole result."""
         waited = 0.0
         while True:
             slice_s = min(POLL_SLICE_S, max(0.0, wait_s - waited))
@@ -128,7 +138,8 @@ class Runs:
                 status, text, err = await self._sh('cat "$1/out_$2"', self.ops_dir, str(n))
                 if status != 0:
                     raise RuntimeError(f"browser run #{n} output could not be read: {err.strip()[:200]}")
-                del self.open[n]
+                if not self.open[n]["screenshot"]:
+                    del self.open[n]
                 return _clip(text) + ("" if exit_code == "0" else f"\n[browser command exit status {exit_code}]")
             if word == "GONE":
                 del self.open[n]
