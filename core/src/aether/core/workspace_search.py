@@ -1,7 +1,17 @@
-"""Bounded literal search of the current task workspace, on demand."""
+"""Bounded search of the current task workspace, on demand (AETHER_CORE_WORKSPACE_SEARCH=on).
+
+Returns what a ripgrep-backed agent tool returns: each matching line with its path, line and column, the totals in
+the scanned scope, and whether the scan covered all of it. The walk is the replay lab's descriptor-scoped navigator:
+it never follows a symbolic link, never leaves the workspace's mount, never opens a FIFO or device, and records each
+matched file's sha256 so a later read can be tied to the version searched. It skips version-control and dependency
+caches only (``.git``, ``node_modules``, virtualenvs, bytecode caches) and hidden directories unless asked for one.
+An earlier version also skipped ``tests``, ``solution``, ``grader`` and ``verifier``: that hid ordinary project code and
+was benchmark framing, so it is gone.
+"""
 
 import json
 import posixpath
+import re
 import shlex
 
 from .env import run
@@ -10,10 +20,12 @@ from .facts_probe import SYSTEM_PYTHON_PATHS
 
 TOOL = {"type": "function", "function": {
     "name": "search_workspace",
-    "description": "Find a literal filename or UTF-8 text under the workspace or a chosen relative subdirectory. "
-                   "Returns exact paths and lines with scan coverage. Narrow the scope when the result is partial.",
+    "description": "Search file names or file contents under the workspace or a relative subdirectory. mode filename: "
+                   "names containing query; text: lines containing query literally; regex: lines matching a Python "
+                   "regular expression. Returns matching lines with path, line and column, totals, and whether the "
+                   "whole scope was scanned. Skips .git, node_modules, virtualenvs and hidden directories.",
     "parameters": {"type": "object", "properties": {
-        "mode": {"type": "string", "enum": ["filename", "text"]},
+        "mode": {"type": "string", "enum": ["filename", "text", "regex"]},
         "query": {"type": "string"},
         "subdir": {"type": "string", "description": "Relative directory, default is the task workspace."},
     }, "required": ["mode", "query"]},
@@ -23,13 +35,15 @@ TOOL = {"type": "function", "function": {
 # Adapted from the replay lab's descriptor-scoped navigator. Open a pinned
 # regular file only after checking its type, link count and mount identity.
 _PROBE = r"""
-import hashlib, json, os, stat, sys, time
+import hashlib, json, os, re, stat, sys, time
 from contextlib import contextmanager
 
 root, subdir, mode, query, exclude = sys.argv[1:]
-skip = {'.git', 'tests', 'test', 'solution', 'solutions', 'grader', 'verifier', 'node_modules', '__pycache__'}
-matches, examined, bytes_read, omitted = [], 0, 0, 0
-deadline = time.monotonic() + 1
+skip = {'.git', '.hg', '.svn', 'node_modules', '__pycache__', '.venv', 'venv', '.tox', '.mypy_cache', '.pytest_cache'}
+MAX_ENTRIES, MAX_SHOWN, MAX_FILE, MAX_BYTES, LINE = 50000, 40, 2_000_000, 32_000_000, 240
+pattern = re.compile(query) if mode == 'regex' else None
+matches, examined, bytes_read, omitted, total, files_matched = [], 0, 0, 0, 0, 0
+deadline = time.monotonic() + 3
 
 def mount(fd):
     with open(f'/proc/self/fdinfo/{fd}', encoding='ascii') as f:
@@ -51,19 +65,29 @@ def directory(path):
     finally:
         os.close(fd)
 
-def visible(name):
-    return not name.startswith('.') and name.casefold() not in skip
+def visible(name, is_dir):
+    return name not in skip and not (is_dir and name.startswith('.'))
+
+def find(line):
+    if pattern is not None:
+        m = pattern.search(line)
+        return m.start() if m else -1
+    return line.find(query)
 
 def walk(fd, prefix, depth, root_mount):
-    global examined, bytes_read, omitted
+    global examined, bytes_read, omitted, total, files_matched
     with os.scandir(fd) as entries:
-        for entry in entries:
-            if examined >= 256 or len(matches) >= 12 or time.monotonic() >= deadline:
+        for entry in sorted(entries, key=lambda e: e.name):
+            if examined >= MAX_ENTRIES or time.monotonic() >= deadline:
                 omitted += 1
                 return
             examined += 1
             path = os.path.join(prefix, entry.name)
-            if not visible(entry.name) or os.path.join(root, path) == exclude:
+            try:
+                is_dir_hint = entry.is_dir(follow_symlinks=False)
+            except OSError:
+                is_dir_hint = False
+            if not visible(entry.name, is_dir_hint) or os.path.join(root, path) == exclude:
                 continue
             child = None
             try:
@@ -75,9 +99,11 @@ def walk(fd, prefix, depth, root_mount):
                     omitted += 1
                     continue
                 if mode == 'filename' and query in entry.name:
-                    matches.append({'path': path, 'kind': 'directory' if is_dir else 'file'})
+                    total += 1
+                    if len(matches) < MAX_SHOWN:
+                        matches.append({'path': path, 'kind': 'directory' if is_dir else 'file'})
                 if is_dir:
-                    if depth == 5:
+                    if depth == 24:
                         omitted += 1
                         continue
                     directory_fd = os.open(f'/proc/self/fd/{child}', os.O_RDONLY | os.O_DIRECTORY)
@@ -86,9 +112,9 @@ def walk(fd, prefix, depth, root_mount):
                     finally:
                         os.close(directory_fd)
                     continue
-                if mode != 'text':
+                if mode == 'filename':
                     continue
-                if info.st_nlink != 1 or info.st_size > 32768 or bytes_read + info.st_size > 196608:
+                if info.st_nlink != 1 or info.st_size > MAX_FILE or bytes_read + info.st_size > MAX_BYTES:
                     omitted += 1
                     continue
                 with open(f'/proc/self/fd/{child}', 'rb') as stream:
@@ -99,14 +125,17 @@ def walk(fd, prefix, depth, root_mount):
                         continue
                 digest = None
                 for line_no, line in enumerate(raw.decode('utf-8').split('\n'), 1):
-                    offset = line.find(query)
+                    offset = find(line)
                     if offset < 0:
                         continue
-                    if len(matches) >= 12:
-                        omitted += 1
-                        break
-                    digest = digest or hashlib.sha256(raw).hexdigest()
-                    matches.append({'path': path, 'line': line_no, 'column': offset + 1, 'sha256': digest})
+                    total += 1
+                    if digest is None:
+                        files_matched += 1
+                        digest = hashlib.sha256(raw).hexdigest()
+                    if len(matches) < MAX_SHOWN:
+                        start = max(0, min(offset - LINE // 3, len(line) - LINE))
+                        matches.append({'path': path, 'line': line_no, 'column': offset + 1, 'sha256': digest,
+                                        'text': line[start:start + LINE]})
             except (OSError, UnicodeDecodeError, StopIteration):
                 omitted += 1
             finally:
@@ -128,6 +157,7 @@ try:
             if identity(current) != owner or identity(check) != start:
                 raise ValueError('directory was replaced during search')
     result = {'status': 'partial' if omitted else 'searched', 'subdir': subdir, 'matches': matches,
+              'matches_total': total, 'files_matched': files_matched, 'shown': len(matches),
               'examined': examined, 'skipped_or_limited': omitted, 'bytes_read': bytes_read}
 except (ValueError, OSError, StopIteration, AttributeError):
     result = {'status': 'scope_unavailable'}
@@ -137,13 +167,15 @@ print(json.dumps(result, ensure_ascii=True, separators=(',', ':')))
 
 async def search(env, workdir, control_dir, args):
     mode, query, subdir = args["mode"], args["query"], args.get("subdir", "")
-    if (mode not in ("filename", "text") or not 1 <= len(query) <= 160 or "\0" in query
-            or "\n" in query or "\0" in subdir or len(subdir) > 256 or (subdir and any(
-                not part or part.startswith(".") or part.casefold() in
-                ("test", "tests", "solution", "solutions", "grader", "verifier", "node_modules", "__pycache__")
-                for part in subdir.split("/")
-            ))):
-        raise ValueError("search requires a literal query and a visible workspace-relative directory")
+    if (mode not in ("filename", "text", "regex") or not 1 <= len(query) <= 160 or "\0" in query
+            or "\n" in query or "\0" in subdir or len(subdir) > 256 or subdir.startswith("/")
+            or (subdir and any(part in ("", ".", "..") for part in subdir.rstrip("/").split("/")))):
+        raise ValueError("search requires a query and a workspace-relative directory")
+    if mode == "regex":
+        try:
+            re.compile(query)
+        except re.error as exc:
+            raise ValueError(f"invalid regular expression: {exc}") from None
     if workdir == "/" or workdir.startswith("//") or not workdir.startswith("/") or posixpath.normpath(workdir) != workdir:
         return '{"status":"scope_unavailable"}'
     excluded = posixpath.normpath(posixpath.join(workdir, control_dir))
@@ -154,7 +186,7 @@ async def search(env, workdir, control_dir, args):
     if not choices:
         return '{"status":"search_unavailable"}'
     launch = shlex.join(["-I", "-S", "-c", _PROBE, workdir, subdir, mode, query, excluded])
-    result = await run(env, f'for p in {choices}; do [ -x "$p" ] && exec "$p" {launch}; done; exit 127', timeout_s=4)
-    if result.code != 0 or len(result.stdout) > 26000:
+    result = await run(env, f'for p in {choices}; do [ -x "$p" ] && exec "$p" {launch}; done; exit 127', timeout_s=8)
+    if result.code != 0 or len(result.stdout) > 60000:
         return '{"status":"search_unavailable","fallback":"Use terminal or read_file in the task workspace."}'
     return json.dumps(json.loads(result.stdout), ensure_ascii=True, separators=(",", ":"))
