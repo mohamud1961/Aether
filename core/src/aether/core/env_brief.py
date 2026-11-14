@@ -19,6 +19,7 @@ Measured facts only, like the rest; nothing says what they mean for the task.
 
 from __future__ import annotations
 
+import json
 import shlex
 
 from .env import Environment, run
@@ -35,6 +36,7 @@ INDEXES = (("deb.debian.org", 80), ("archive.ubuntu.com", 80), ("dl-cdn.alpineli
 MAX_PACKAGES, MAX_ENTRIES, MAX_CHARS = 80, 60, 3000
 
 _SCRIPT = r"""
+wd={wd}
 os=$( (. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME") || uname -sr)
 echo "os: $os $(uname -m 2>/dev/null)"
 have=""; miss=""
@@ -56,32 +58,48 @@ cpu=$(nproc 2>/dev/null); q=$(cat /sys/fs/cgroup/cpu.max 2>/dev/null)
 case "$q" in [0-9]*) cpu="$cpu (cgroup quota $(echo "$q" | awk '{{printf "%.1f", $1/$2}}'))";; esac
 mt=$(awk '/MemTotal/{{print int($2/1024)}}' /proc/meminfo 2>/dev/null); ma=$(awk '/MemAvailable/{{print int($2/1024)}}' /proc/meminfo 2>/dev/null)
 ml=$(cat /sys/fs/cgroup/memory.max 2>/dev/null); case "$ml" in [0-9]*) ml=", cgroup limit $((ml/1048576)) MiB";; *) ml="";; esac
-echo "machine: cpus ${{cpu:-unknown}}; memory ${{mt:-?}} MiB total, ${{ma:-?}} MiB available$ml; disk free: $(df -Pm {wd} 2>/dev/null | awk 'NR==2{{print $4" MiB at "$6}}'), $(df -Pm /tmp 2>/dev/null | awk 'NR==2{{print $4" MiB at "$6}}')"
-od=""; for d in /*; do case "${{d#/}}" in bin|boot|dev|etc|home|lib|lib32|lib64|libx32|media|mnt|opt|proc|root|run|sbin|srv|sys|tmp|usr|var) ;; *) [ "$d" = {wd} ] || od="$od $d";; esac; done
+echo "machine: cpus ${{cpu:-unknown}}; memory ${{mt:-?}} MiB total, ${{ma:-?}} MiB available$ml; disk free: $(df -Pm "$wd" 2>/dev/null | awk 'NR==2{{print $4" MiB at "$6}}'), $(df -Pm /tmp 2>/dev/null | awk 'NR==2{{print $4" MiB at "$6}}')"
+od=""; for d in /*; do case "${{d#/}}" in bin|boot|dev|etc|home|lib|lib32|lib64|libx32|media|mnt|opt|proc|root|run|sbin|srv|sys|tmp|usr|var) ;; *) [ "$d" = "$wd" ] || od="$od $d";; esac; done
 sk='\.(bashrc|profile|bash_logout|cache|config|local|npm|wget-hsts|bash_history)'
-for d in /opt /srv /mnt /home/* /root /tmp; do [ -d "$d" ] && [ "$d" != {wd} ] || continue
+for d in /opt /srv /mnt /home/* /root /tmp; do [ -d "$d" ] && [ "$d" != "$wd" ] || continue
   e=$(ls -A "$d" 2>/dev/null | grep -vxE "$sk" | head -8 | tr '\n' ' ' | sed 's/ $//'); [ -n "$e" ] && od="$od $d($e)"; done
-echo "outside {wd} (non-standard or non-empty):${{od:- nothing}}"
+printf 'outside %s (non-standard or non-empty):%s\n' "$wd" "${{od:- nothing}}"
 pr=$(for p in /proc/[0-9]*; do [ "${{p#/proc/}}" = "$$" ] || cat "$p/comm" 2>/dev/null; done | grep -vxE 'bash|sh|dash|timeout|sort|cat|uniq|head|tr|find|awk|sed|ls|grep|wc|xargs' | sort | uniq | head -20 | tr '\n' ' ')
 echo "running processes: ${{pr:-none besides this probe}}"
-echo "files under {wd} (depth 2):"
-cd {wd} 2>/dev/null && find . -mindepth 1 -maxdepth 2 -not -path '*/.git/*' 2>/dev/null | sort | head -{maxe} | while read -r p; do
-  if [ -d "$p" ]; then echo "  $p/"; else echo "  $p ($(wc -c < "$p" 2>/dev/null | tr -d ' ') B)"; fi; done
-[ "$(find . -mindepth 1 -maxdepth 2 -not -path '*/.git/*' 2>/dev/null | wc -l)" -gt {maxe} ] && echo "  ..."
+printf '\000'
+if cd "$wd" 2>/dev/null && command -v timeout >/dev/null 2>&1 && head -z -n 0 /dev/null 2>/dev/null; then
+    LC_ALL=C timeout 2 find -P . -mindepth 1 -maxdepth 2 -type d -name .git -prune -o \
+      -printf '%y\t%s\t%p\0' 2>/dev/null | head -z -n {sample_limit}
+fi
+printf '\000done'
 """
 
 
 async def take(env: Environment, workdir: str) -> tuple[str, dict]:
     """One probe of the task container; returns the brief for the task message ('' on failure) and a trace row."""
-    script = _SCRIPT.format(tools=" ".join(TOOLS), managers=" ".join(MANAGERS), maxp=MAX_PACKAGES, maxe=MAX_ENTRIES,
+    script = _SCRIPT.format(tools=" ".join(TOOLS), managers=" ".join(MANAGERS), maxp=MAX_PACKAGES, sample_limit=MAX_ENTRIES + 1,
                             indexes=" ".join(f"{h}:{p}" for h, p in INDEXES), wd=shlex.quote(workdir))
     try:
         result = await run(env, script, timeout_s=30)
     except Exception as exc:  # an instrument: no brief, no claim
         return "", {"ok": False, "reason": f"{type(exc).__name__}: {exc}"[:300]}
-    text = result.stdout.strip()
-    if not text.startswith("os:"):
-        return "", {"ok": False, "reason": (result.stderr or text)[:300], "exit": result.code}
+    summary, *sample, end = result.stdout.split("\0") if "\0" in result.stdout else (result.stdout, "")
+    if result.code != 0 or not summary.startswith("os:") or end != "done":
+        return "", {"ok": False, "reason": (result.stderr or "probe did not complete")[:300], "exit": result.code}
+    lines = []
+    for entry in sample[:MAX_ENTRIES]:
+        fields = entry.split("\t", 2)
+        if len(fields) != 3:
+            continue
+        kind, size, path = fields
+        label = json.dumps(path)[1:-1]
+        suffix = {"d": "/", "f": f" ({size} B)", "l": " (link)"}.get(kind, " (special)")
+        lines.append(f"  {label}{suffix}")
+    if len(sample) > MAX_ENTRIES + 1:  # trailing NUL leaves an empty field
+        lines.append("  ...")
+    text = summary.rstrip()
+    if lines:
+        text += f"\nfiles under {workdir} (depth 2, sample):\n" + "\n".join(lines)
     if len(text) > MAX_CHARS:
         text = text[:MAX_CHARS] + "\n  ..."
     return f"(Environment, measured by the harness before your first action:\n{text})", {"ok": True, "chars": len(text)}
