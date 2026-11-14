@@ -13,6 +13,7 @@ import pytest
 
 from aether.core.loop import CoreConfig, Trace, run_agent
 from aether.core.mcp import Mcp
+from aether.core.mcp import Mcp
 from aether.core.provider import ChatProvider
 from tests.core_fakes import LocalEnv, ScriptedClient, call
 
@@ -105,3 +106,24 @@ def test_no_declared_servers_no_tool(tmp_path):
                           provider=ChatProvider(client, model="offline", params={}), trace=Trace(tmp_path / "t"),
                           timeout_s=30, config=CoreConfig(control_dir=str(tmp_path / "control"))))
     assert "mcp" not in [t["function"]["name"] for t in client.requests[0]["tools"]]
+
+
+
+def test_two_controller_sessions_do_not_share_reply_or_cleanup_ownership(tmp_path):
+    first = {"name": "fx", "transport": "stdio", "command": sys.executable, "args": [FIXTURE, "stdio"]}
+    second = {**first, "args": ["-c", "raise SystemExit(7)"]}
+    args = {"server": "fx", "action": "call", "tool": "count"}
+
+    async def scenario():
+        prior = Mcp(LocalEnv(tmp_path), str(tmp_path / "control"), [first])
+        later = Mcp(LocalEnv(tmp_path), str(tmp_path / "control"), [second])
+        try:
+            assert (await prior.use(args, 60)).startswith("count=1")
+            with pytest.raises(RuntimeError, match="client initialization failed"):
+                await later.use(args, 60)
+            await later.close()
+            assert (await prior.use(args, 60)).startswith("count=2")
+        finally:
+            await prior.close()
+
+    asyncio.run(scenario())
