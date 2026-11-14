@@ -16,11 +16,12 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import secrets
 import shlex
 import time
 from typing import Any
 
-from .env import put_bytes, run
+from .env import ProcessCleanupError, put_bytes, run, stop_process_tree
 from .mcp_client_src import SOURCE
 
 MAX_CHARS = 30_000
@@ -28,7 +29,7 @@ MAX_CHARS = 30_000
 
 def tool(servers: list[dict[str, Any]]) -> dict:
     names = [s["name"] for s in servers]
-    listed = "; ".join(f"{s['name']} ({s['transport']}{', ' + s['url'] if s.get('url') else ''})" for s in servers)
+    listed = "; ".join(f"{s['name']} ({s['transport']})" for s in servers)
     return {"type": "function", "function": {
         "name": "mcp",
         "description": (f"Use an MCP server declared by this task's environment: {listed}. action=list returns the "
@@ -59,13 +60,15 @@ class Mcp:
         self.env, self.root = env, f"{control_dir}/mcp"
         self.servers = {s["name"]: s for s in servers}
         self.started: dict[str, str] = {}
+        self.launched: list[str] = []
         self.seq = 0
         self.calls: list[dict[str, Any]] = []
 
-    async def _start(self, name: str) -> str:
+    async def _start(self, name: str, remaining: float) -> str:
         if name in self.started:
             return self.started[name]
-        spec, d = self.servers[name], f"{self.root}/{name}"
+        spec = self.servers[name]
+        d = f"{self.root}/session-{secrets.token_hex(12)}"
         q = shlex.quote
         await put_bytes(self.env, SOURCE.encode(), f"{self.root}/client.py")
         target = [spec["url"]] if spec["transport"] != "stdio" else [spec["command"], *spec["args"]]
@@ -73,20 +76,24 @@ class Mcp:
         python = found.stdout.strip().splitlines()[0] if found.code == 0 and found.stdout.strip() else ""
         if not python:
             raise RuntimeError("no python3 in the task environment; the MCP client needs one")
-        launch = (f"mkdir -p {q(d)} && cd {q(d)} && nohup {q(python)} {q(self.root + '/client.py')} {q(d)} "
-                  f"{q(spec['transport'])} {' '.join(q(str(x)) for x in target)} > {q(d + '/client.log')} 2>&1 "
-                  f"& echo $! > {q(d + '/pid')}")
-        await run(self.env, launch, timeout_s=10)
-        for _ in range(300):
-            state = await run(self.env, f"cat {q(d + '/error')} 2>/dev/null && echo __E__; "
-                                        f"test -f {q(d + '/ready')} && echo __R__; true", timeout_s=10)
-            if "__E__" in state.stdout:
-                raise RuntimeError("MCP server " + name + ": " + state.stdout.split("__E__")[0].strip()[:500])
-            if "__R__" in state.stdout:
+        launch = (f"mkdir -m 700 {q(d)} && cd {q(d)} && "
+                  f"{{ nohup {q(python)} {q(self.root + '/client.py')} {q(d)} "
+                  f"{q(spec['transport'])} {' '.join(q(str(x)) for x in target)} "
+                  f"</dev/null > {q(d + '/client.log')} 2>&1 & echo $! > pid; }}")
+        self.launched.append(d)
+        if (await run(self.env, launch, timeout_s=10)).code != 0:
+            raise RuntimeError(f"MCP server {name}: client launch failed")
+        deadline = time.monotonic() + max(1.0, min(60.0, remaining - 5))
+        while time.monotonic() < deadline:
+            state = await run(self.env, f"if test -f {q(d + '/error')}; then echo error; "
+                                        f"elif test -f {q(d + '/ready')}; then echo ready; fi", timeout_s=10)
+            if state.stdout.strip() == "error":
+                raise RuntimeError(f"MCP server {name}: client initialization failed")
+            if state.stdout.strip() == "ready":
                 self.started[name] = d
                 return d
             await asyncio.sleep(0.2)
-        raise TimeoutError(f"MCP server {name}: the client was not ready within 60 s")
+        raise TimeoutError(f"MCP server {name}: the client was not ready before its startup deadline")
 
     async def use(self, args: dict[str, Any], remaining: float) -> str:
         name, action = args["server"], args["action"]
@@ -94,7 +101,7 @@ class Mcp:
             return f"error: no declared MCP server named {name!r}"
         if action == "call" and not args.get("tool"):
             return "error: action=call requires tool"
-        d = await self._start(name)
+        d = await self._start(name, remaining)
         self.seq += 1
         ident = self.seq
         timeout = max(1.0, min(float(args.get("timeout_s") or 120), 600.0, remaining - 5))
@@ -103,12 +110,16 @@ class Mcp:
         body = json.dumps({"id": ident, "method": method, "params": params, "timeout": timeout}).encode()
         await put_bytes(self.env, body, f"{d}/req.tmp.{ident}")
         q = shlex.quote
-        await run(self.env, f"mv -f {q(f'{d}/req.tmp.{ident}')} {q(f'{d}/req_{ident}.json')}", timeout_s=10)
+        published = await run(self.env, f"mv -f {q(f'{d}/req.tmp.{ident}')} {q(f'{d}/req_{ident}.json')}", timeout_s=10)
+        if published.code != 0:
+            return f"error: MCP server {name}: could not publish request"
         started = time.monotonic()
         while time.monotonic() - started < timeout + 10:
             got = await run(self.env, f"cat {q(f'{d}/resp_{ident}.json')} 2>/dev/null; true", timeout_s=30)
             if got.stdout.strip():
                 reply = json.loads(got.stdout)
+                if reply.get("id") != ident:
+                    return f"error: MCP server {name}: response identity does not match the request"
                 self.calls.append({"server": name, "action": action, "tool": args.get("tool"),
                                    "error": "error" in reply, "s": round(time.monotonic() - started, 2)})
                 return await self._render(d, ident, action, reply)
@@ -130,7 +141,7 @@ class Mcp:
             if kind == "text":
                 parts.append(item.get("text", ""))
             elif kind == "image" and item.get("data"):
-                ext = (item.get("mimeType") or "image/png").split("/")[-1].split("+")[0]
+                ext = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}.get(item.get("mimeType"), "bin")
                 path = f"{d}/image_{ident}_{i}.{ext}"
                 await put_bytes(self.env, base64.b64decode(item["data"]), path)
                 parts.append(f"[image returned by the server, saved at {path}]")
@@ -140,5 +151,18 @@ class Mcp:
         return (("[the tool reported an error]\n" if result.get("isError") else "") + text)[:MAX_CHARS]
 
     async def close(self) -> None:
-        for d in self.started.values():
-            await run(self.env, f"kill $(cat {shlex.quote(d + '/pid')}) 2>/dev/null; true", timeout_s=10)
+        unresolved = []
+        for d in self.launched:
+            identity = await run(self.env, f"cat {shlex.quote(d + '/owner')} 2>/dev/null", timeout_s=10)
+            fields = identity.stdout.split()
+            if len(fields) != 2 or any(not field.isdecimal() for field in fields):
+                unresolved.append("client ownership receipt missing")
+                continue
+            pid, birth = fields
+            try:
+                await stop_process_tree(self.env, [int(pid)], identities={pid: birth})
+            except ProcessCleanupError as exc:
+                if int(pid) not in exc.receipt.get("missing_roots", []):
+                    unresolved.append("client cleanup unverified")
+        if unresolved:
+            raise RuntimeError("; ".join(unresolved))

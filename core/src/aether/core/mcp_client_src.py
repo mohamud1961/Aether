@@ -155,6 +155,12 @@ def call(transport, ident, method, params, timeout):
 
 
 def main():
+    with open("/proc/self/stat") as stat:
+        birth = stat.read().rsplit(")", 1)[1].split()[19]
+    with open(os.path.join(D, "owner.tmp"), "w") as handle:
+        handle.write("%d %s\n" % (os.getpid(), birth))
+    os.replace(os.path.join(D, "owner.tmp"), os.path.join(D, "owner"))
+    transport = None
     try:
         transport = {"sse": Sse, "streamable-http": Http}[KIND](TARGET[0]) if KIND != "stdio" else Stdio(TARGET)
         init = call(transport, 0, "initialize", {"protocolVersion": "2024-11-05", "capabilities": {},
@@ -163,7 +169,10 @@ def main():
             raise RuntimeError(init["error"].get("message", "initialize failed"))
         transport.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
     except Exception as exc:
-        write("error", {"message": "%s: %s" % (type(exc).__name__, exc)})
+        if isinstance(transport, Stdio) and transport.proc.poll() is None:
+            transport.proc.kill()
+            transport.proc.wait()
+        write("error", {"message": type(exc).__name__})
         return 1
     write("ready", init.get("result") or {})
     served = set()
