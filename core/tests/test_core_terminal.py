@@ -397,7 +397,7 @@ def test_a_failing_pipeline_stage_is_reported_not_hidden(tmp_path):
         await t.use(input="true")
         masked = await t.use(input="echo a; false | cat")
         clean = await t.use(input="true | cat")
-        failed_last = await t.use(input="echo x | false")
+        failed_last = await t.use(input="echo x | { cat >/dev/null; false; }")
         returned = await t.use(input="f() { return 4; }; f")
         continued = await t.use(input="echo one \\\n two")
         return masked, clean, failed_last, returned, continued
@@ -419,7 +419,7 @@ def test_a_models_xtrace_traces_its_commands_not_the_terminal_bookkeeping(tmp_pa
         t, _ = _terms(tmp_path)
         on = await t.use(input="set -x")
         traced = await t.use(input="echo visible-out; false | cat")
-        failed = await t.use(input="echo x | false")
+        failed = await t.use(input="echo x | { cat >/dev/null; false; }")
         off = await t.use(input="set +x; echo after")
         quiet = await t.use(input="echo plain")
         return on, traced, failed, off, quiet
