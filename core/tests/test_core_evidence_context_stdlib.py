@@ -213,6 +213,8 @@ class HistoryEvidenceTest(unittest.TestCase):
         ctx = edited(action(1), result(1, "original source"))
         ctx.raw[1]["content"] = "tampered later"
         self.assertIsNone(ctx.original_message_digest(1))
+        with self.assertRaisesRegex(ValueError, "no longer matches"):
+            ctx.read_history(1)
         baseline = ctx.request()
         shown, status = select_context(ctx, baseline, HISTORY_TOOL, policy="history_index")
         self.assertIs(shown, baseline)

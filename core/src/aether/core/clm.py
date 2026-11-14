@@ -372,6 +372,10 @@ class ClmContext:
                 f"history contains {len(self.raw)} messages; IDs are 0 through {len(self.raw) - 1}"
             )
         text = json.dumps(self.raw[message_id], ensure_ascii=False)
+        if self.settings.attest_original_history:
+            recorded = self.append_digest_candidate(message_id)
+            if recorded != hashlib.sha256(text.encode("utf-8")).hexdigest():
+                raise ValueError(f"history MSG {message_id} no longer matches its original source digest")
         if offset < 0 or offset > len(text) or limit < 1 or limit > 20000:
             raise ValueError(
                 f"offset must be 0..{len(text)} and limit must be 1..20000 characters"
