@@ -19,6 +19,7 @@ temporary copy, which is removed.
 
 from __future__ import annotations
 
+import json
 import re
 import shlex
 
@@ -43,6 +44,7 @@ done
 budget={copy_limit}
 find -P "$wd" -xdev -mindepth 1 -maxdepth 3 \( -name '.*' -type d -prune -o -type f \( -iname '*.csv' -o -iname '*.tsv' -o -iname '*.parquet' -o -iname '*.db' -o -iname '*.sqlite' -o -iname '*.sqlite3' -o -iname '*.json' -o -iname '*.jsonl' -o -iname '*.xlsx' \) -print \) 2>/dev/null | grep -Eiv '{sensitive}' | sort | head -n {max_data} | while IFS= read -r f; do
   [ -f "$f" ] && [ ! -L "$f" ] || continue
+  case "$f" in *"$(printf '\t')"*) continue;; esac  # a tab would split the record
   size=$(stat -c %s -- "$f" 2>/dev/null) || continue
   rel=${f#"$wd"/}
   if [ "$(head -c 15 "$f" 2>/dev/null)" = "SQLite format 3" ]; then
@@ -103,6 +105,17 @@ def task_paths(task: str) -> list[str]:
     return found[:MAX_PATHS]
 
 
+def _quoted(text: str) -> str:
+    """Text taken from inside the environment's files, shown as one quoted literal: control characters escaped, so it
+    cannot break out of its line or pass for the harness's own wording."""
+    return json.dumps(text, ensure_ascii=False)
+
+
+def _plain(text: str) -> str:
+    """A name from the environment (path, hook): as is when printable, else quoted with its characters escaped."""
+    return text if text.isprintable() else _quoted(text)
+
+
 def parse(stdout: str) -> tuple[list[str], dict]:
     lines: list[str] = []
     data, paths, row = [], [], {"repos_with_extras": 0, "data_files": 0, "task_paths": 0, "display": False}
@@ -114,14 +127,14 @@ def parse(stdout: str) -> tuple[list[str], dict]:
             if sub != "0":
                 parts.append(f"submodules declared {sub} (initialized {init})")
             if hooks:
-                parts.append("active hooks: " + " ".join(hooks))
+                parts.append("active hooks: " + " ".join(_plain(h) for h in hooks))
             if hooks_path:
-                parts.append(f"core.hooksPath {hooks_path}")
+                parts.append(f"core.hooksPath {_quoted(hooks_path)}")
             if parts:
                 row["repos_with_extras"] += 1
-                lines.append(f"- git repository {f[1]}: " + "; ".join(parts))
+                lines.append(f"- git repository {_plain(f[1])}: " + "; ".join(parts))
         elif f[0] == "D" and len(f) == 6:
-            name, kind, size, side, extra = f[1], f[2], f[3], f[4].split(), f[5].strip()
+            name, kind, size, side, extra = _plain(f[1]), f[2], f[3], f[4].split(), f[5].strip()
             if kind == "sqlite":
                 sidecars = []
                 for item in side:
@@ -140,12 +153,12 @@ def parse(stdout: str) -> tuple[list[str], dict]:
                 elif extra == "(schema unavailable)":
                     tables = "tables not read: SQLite query failed on the copy"
                 else:
-                    tables = f"tables, read from a copy: {extra or 'none'}"
+                    tables = f"table names, read from a copy: {_quoted(extra) if extra else 'none'}"
                 data.append(f"{name} (SQLite, {size} bytes{beside}; {tables})")
             else:
-                data.append(f"{name} ({size} bytes" + (f"; first line: {extra}" if extra else "") + ")")
+                data.append(f"{name} ({size} bytes" + (f"; first line, quoted from the file: {_quoted(extra)}" if extra else "") + ")")
         elif f[0] == "P" and len(f) == 3:
-            paths.append(f"{f[1]} {f[2]}")
+            paths.append(f"{_plain(f[1])} {_plain(f[2])}")
         elif f[0] == "X" and len(f) == 5:
             display = ", ".join(x for x in (f[1] and f"DISPLAY={f[1]}", f[2] and f"WAYLAND_DISPLAY={f[2]}",
                                            f[3].strip() and f"X sockets {f[3].strip()}") if x) or "none set"
