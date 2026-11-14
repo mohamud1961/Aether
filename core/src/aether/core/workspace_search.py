@@ -35,7 +35,7 @@ TOOL = {"type": "function", "function": {
 # Adapted from the replay lab's descriptor-scoped navigator. Open a pinned
 # regular file only after checking its type, link count and mount identity.
 _PROBE = r"""
-import hashlib, json, os, re, stat, sys, time
+import hashlib, json, os, re, signal, stat, sys, time
 from contextlib import contextmanager
 
 root, subdir, mode, query, exclude = sys.argv[1:]
@@ -44,6 +44,21 @@ MAX_ENTRIES, MAX_SHOWN, MAX_FILE, MAX_BYTES, LINE = 50000, 40, 2_000_000, 32_000
 pattern = re.compile(query) if mode == 'regex' else None
 matches, examined, bytes_read, omitted, total, files_matched = [], 0, 0, 0, 0, 0
 deadline = time.monotonic() + 3
+stopped = False
+
+class Stop(Exception):
+    pass
+
+matching = False
+
+def interrupt(signum, frame):
+    if matching:  # only a match in progress is interrupted; elsewhere the deadline checks end the walk
+        raise Stop()
+
+# The deadline is checked between entries and lines; a regular expression that backtracks without end inside one
+# line is interrupted by this timer (re checks for signals while matching), so the results so far are still returned.
+signal.signal(signal.SIGALRM, interrupt)
+signal.setitimer(signal.ITIMER_REAL, 3.5)
 
 def mount(fd):
     with open(f'/proc/self/fdinfo/{fd}', encoding='ascii') as f:
@@ -69,8 +84,13 @@ def visible(name, is_dir):
     return name not in skip and not (is_dir and name.startswith('.'))
 
 def find(line):
+    global matching
     if pattern is not None:
-        m = pattern.search(line)
+        matching = True
+        try:
+            m = pattern.search(line)
+        finally:
+            matching = False
         return m.start() if m else -1
     return line.find(query)
 
@@ -125,6 +145,9 @@ def walk(fd, prefix, depth, root_mount):
                         continue
                 digest = None
                 for line_no, line in enumerate(raw.decode('utf-8').split('\n'), 1):
+                    if line_no % 256 == 0 and time.monotonic() >= deadline:
+                        omitted += 1
+                        break
                     offset = find(line)
                     if offset < 0:
                         continue
@@ -152,13 +175,20 @@ try:
         owner, start = identity(base), identity(fd)
         if owner[2] != start[2]:
             raise ValueError('subdirectory is on a different mount')
-        walk(fd, subdir, 0, owner[2])
+        try:
+            walk(fd, subdir, 0, owner[2])
+        except Stop:
+            stopped = True
+            omitted += 1
+        signal.setitimer(signal.ITIMER_REAL, 0)
         with directory(root) as current, directory(target) as check:
             if identity(current) != owner or identity(check) != start:
                 raise ValueError('directory was replaced during search')
     result = {'status': 'partial' if omitted else 'searched', 'subdir': subdir, 'matches': matches,
               'matches_total': total, 'files_matched': files_matched, 'shown': len(matches),
               'examined': examined, 'skipped_or_limited': omitted, 'bytes_read': bytes_read}
+    if stopped:
+        result['stopped'] = 'time limit reached while matching; results so far are shown'
 except (ValueError, OSError, StopIteration, AttributeError):
     result = {'status': 'scope_unavailable'}
 print(json.dumps(result, ensure_ascii=True, separators=(',', ':')))

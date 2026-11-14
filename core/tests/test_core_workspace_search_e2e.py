@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 
 import pytest
 
@@ -93,3 +94,37 @@ def test_search_agrees_with_a_grep_control_and_reports_totals(tmp_path):
         search(mode="regex", query="(unclosed")
     with pytest.raises(ValueError):
         search(mode="text", query="x", subdir="../outside")
+
+
+def _backtracking(tmp_path, monkeypatch, probe=None):
+    from aether.core import workspace_search
+
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "a.txt").write_text("needle aaa\n")
+    (work / "b.txt").write_text("a" * 40 + "!\n")  # (a+)+$ backtracks without end on this line
+    if probe is not None:
+        monkeypatch.setattr(workspace_search, "_PROBE", probe(workspace_search._PROBE))
+    started = time.monotonic()
+    try:
+        out = json.loads(asyncio.run(workspace_search.search(LocalEnv(work), str(work), "control",
+                                                             {"mode": "regex", "query": r"^(a+)+$|needle"})))
+    except TimeoutError:  # the exec limit ended the probe: the tool call fails and nothing is returned
+        out = {"status": "lost"}
+    return out, time.monotonic() - started
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux file descriptors and mount identity")
+def test_a_backtracking_regex_is_stopped_and_the_results_so_far_are_kept(tmp_path, monkeypatch):
+    result, elapsed = _backtracking(tmp_path, monkeypatch)
+    assert elapsed < 7
+    assert result["status"] == "partial" and "time limit" in result["stopped"]
+    assert [m["path"] for m in result["matches"]] == ["a.txt"]
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux file descriptors and mount identity")
+def test_without_the_match_timer_the_search_is_lost(tmp_path, monkeypatch):
+    """Known-bad: the deadline alone is checked between lines, so the exec limit kills the probe and nothing returns."""
+    result, elapsed = _backtracking(
+        tmp_path, monkeypatch, lambda probe: probe.replace("signal.setitimer(signal.ITIMER_REAL, 3.5)", "pass", 1))
+    assert result["status"] in ("lost", "search_unavailable") and elapsed >= 7
