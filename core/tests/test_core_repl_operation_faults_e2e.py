@@ -6,8 +6,8 @@ only its intent keeps trying: it re-sends the cell, observes when told code was 
 the cell never started. The cell makes its effect at once and finishes a second later.
 
 At every kill point: the cell runs at most once, at least once within a few turns, and its output reaches the model
-exactly once. The REPL has no adoption across controllers (a new controller starts a fresh interpreter), so only the
-surviving-controller fate applies.
+exactly once. This sweep covers a surviving controller; a restarted controller adopting the interpreter is covered
+in ``test_core_repl_adopt_e2e.py``.
 """
 
 import asyncio

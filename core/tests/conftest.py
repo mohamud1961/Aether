@@ -192,3 +192,26 @@ def pytest_collection_finish(session):
 
 def pytest_sessionfinish(session, exitstatus):
     _installed_import_gate()
+
+
+# Feature-on regression (plan §7 change 1): AETHER_CORE_TEST_SUBSTRATE=on runs every test with the substrate switches
+# on by default, so a test that never mentions them exercises them: operation tracking and adoption for terminals,
+# Python and MCP (terminal_events / preserve_existing / track_operations / adopt) and the tool deadline. Tests that
+# pass a value explicitly keep it. Model-facing switches stay as each test sets them.
+if os.environ.get("AETHER_CORE_TEST_SUBSTRATE") == "on":
+    from aether.core import loop as _loop, mcp as _mcp, repl as _repl, terminal as _terminal
+
+    def _defaulting(cls, *names):
+        original = cls.__init__
+
+        def __init__(self, *args, **kwargs):
+            for name in names:
+                kwargs.setdefault(name, True)
+            original(self, *args, **kwargs)
+
+        cls.__init__ = __init__
+
+    _defaulting(_loop.CoreConfig, "terminal_events")
+    _defaulting(_terminal.Terminals, "preserve_existing")
+    _defaulting(_repl.Repl, "track_operations")
+    _defaulting(_mcp.Mcp, "adopt")

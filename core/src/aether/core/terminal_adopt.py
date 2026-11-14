@@ -95,7 +95,7 @@ async def adopt(terminals, name: str) -> tuple[Session, dict] | None:
                         and line[6:].isascii() and line[6:].isdigit()), default=0)
     seq = max(parse_seq(pending_text) or 0, latest_claim) or None
     token = done = offset = None
-    delivered = False
+    delivered = None
     if seq is not None:
         records = await run(
             terminals._env,
@@ -107,7 +107,7 @@ async def adopt(terminals, name: str) -> tuple[Session, dict] | None:
             raise RuntimeError(f"terminal {name}: command #{seq} records could not be read")
         token, done, delivered = parsed
         offset = offset_text.strip()
-    state, exit_status = operations.classify(seq, token, done, delivered, alive)
+    state, exit_status = operations.classify(seq, token, done, operations.seen(delivered, terminals.conversation), alive)
     session = Session(name, root, pid, mode[0] == "pty", bash=mode[1] == "bash", grew_at=time.monotonic())
     session.seq = seq or 0
     unseen = state in ("running", "completed")
@@ -137,7 +137,8 @@ async def resolve(terminals, session: Session) -> str:
     parsed = operations.parse(records)
     if res.code != 0 or parsed is None:
         return ""
-    state, _ = operations.classify(seq, *parsed, alive == "__ALIVE__")
+    token, done, tag = parsed
+    state, _ = operations.classify(seq, token, done, operations.seen(tag, terminals.conversation), alive == "__ALIVE__")
     if state == "revoked":
         session.pending, session.dispatch_unconfirmed = 0, False
         return (f"[command #{seq} in terminal {session.name} was never started: its dispatch failed before the "

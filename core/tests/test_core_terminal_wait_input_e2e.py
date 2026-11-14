@@ -52,3 +52,28 @@ def test_a_quiet_command_without_a_prompt_does_not_end_the_wait(tmp_path):
             await t.close()
 
     asyncio.run(go())
+
+
+def test_a_chosen_quiet_window_ends_the_wait_on_stalled_output_only(tmp_path):
+    """quiet_s (chosen by the model): a command that stopped printing ends the wait early, listed under quiet and
+    still pending; a command that keeps printing does not; without quiet_s neither does."""
+    async def go():
+        t = Terminals(LocalEnv(tmp_path), str(tmp_path), lambda: 1000.0, control_dir=str(tmp_path / "ctl"))
+        try:
+            await t.use(name="stuck", input="echo started; sleep 60", wait_s=0)
+            await t.use(name="busy", input="for i in $(seq 40); do echo tick-$i; sleep 0.5; done", wait_s=0)
+            started = time.monotonic()
+            seen = await t.wait_events(["stuck"], mode="all", wait_s=60, quiet_s=3)
+            assert time.monotonic() - started < 30
+            assert seen["pending"] == ["stuck"] and seen["quiet"][0]["last_line"].strip().endswith("started")
+            assert seen["quiet"][0]["quiet_s"] >= 3
+            busy = await t.wait_events(["busy"], mode="all", wait_s=8, quiet_s=3)
+            assert "quiet" not in busy and busy["pending"] == ["busy"]
+            plain = await t.wait_events(["stuck"], mode="all", wait_s=6)
+            assert "quiet" not in plain and plain["pending"] == ["stuck"]
+            with pytest.raises(ValueError):
+                await t.wait_events(["stuck"], mode="all", wait_s=5, quiet_s=0)
+        finally:
+            await t.close()
+
+    asyncio.run(go())

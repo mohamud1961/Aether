@@ -27,7 +27,7 @@ from .env import (
     run,
     stop_process_tree,
 )
-from . import operations
+from . import operations, repl_adopt
 from .terminal import MAX_WAIT_S
 
 SERVER_SOURCE = (Path(__file__).with_name("repl_server.py")).read_bytes()
@@ -62,6 +62,10 @@ class Repl:
         self.track_operations = track_operations
         self.unconfirmed = False  # a cell submission's reply was lost; whether the server took it is unresolved
         self.unseen = False  # the pending cell's state has not been shown to the model
+        # Delivery authority (operations.seen), as for terminals; set by the loop.
+        self.delivery_tag = lambda: ""
+        self.conversation: set[str] | None = None
+        self.adopted_note = ""  # shown with the first python result after adopting an earlier controller's server
         self.pid = 0
         self.identity: dict[str, str] = {}
         self.cleanup_receipt: dict = {}
@@ -88,6 +92,11 @@ class Repl:
         version = res.stdout.strip()
         if res.code != 0 or not version:
             return ""
+        if self.track_operations:
+            note = await repl_adopt.adopt(self)
+            if note is not None:
+                self.adopted_note = note + "\n"
+                return self.python
         await put_bytes(self._env, SERVER_SOURCE, f"{self.base}/server.py")
         launch = (
             f"cd {q(self.base)} && rm -rf in out llm ops && mkdir -p in out llm && "
@@ -105,6 +114,8 @@ class Repl:
         self.pid, self.python = int(pid[0]), version
         self.unconfirmed = self.unseen = False
         self.identity = await process_identities(self._env, [self.pid])
+        if self.track_operations and self.identity:
+            await run(self._env, repl_adopt.record_script(self.base, self.pid, self.identity, version))
         self.generation += 1
         self.last_observed_foreground = "started_unconfirmed"
         self.last_observed_cwd, self.cwd_receipt_cell = None, None
@@ -146,7 +157,11 @@ class Repl:
             )
             self.pid = 0
 
-    async def run(
+    async def run(self, code: str = "", *, wait_s: float = 60.0, interrupt: bool = False) -> str:
+        note, self.adopted_note = self.adopted_note, ""
+        return note + await self._run(code, wait_s=wait_s, interrupt=interrupt)
+
+    async def _run(
         self, code: str = "", *, wait_s: float = 60.0, interrupt: bool = False
     ) -> str:
         if (
@@ -258,6 +273,11 @@ class Repl:
         elapsed = time.monotonic() - started
         if done is not None:
             self.pending = 0
+            if self.track_operations:  # whose result carried it: the conversation decides delivery (operations.seen)
+                tag = self.delivery_tag()
+                await run(self._env, operations.mark_delivered(f"{self.base}/ops", seq, tag) + " 2>/dev/null; true")
+                if self.conversation is not None:
+                    self.conversation.add(tag)
             self.last_observed_foreground = "idle_at_last_observation"
             cwd = done.get("cwd")
             self.last_observed_cwd = cwd if isinstance(cwd, str) and cwd.startswith("/") and len(cwd) <= 256 else None

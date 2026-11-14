@@ -1,7 +1,8 @@
 """A small real MCP server for tests: SSE, streamable HTTP or stdio, with per-session state.
 
 Tools: ``count`` (per-session counter, proves the session persists), ``shot`` (returns a PNG image item),
-``fail`` (returns isError). Run as ``python mcp_fixture_server.py sse|http PORT`` or ``... stdio``.
+``fail`` (returns isError), ``effect`` (appends one byte to ``path`` at once, then answers after ``delay`` seconds: an
+external effect a test can count). Run as ``python mcp_fixture_server.py sse|http PORT`` or ``... stdio``.
 """
 
 import base64
@@ -9,6 +10,7 @@ import json
 import queue
 import sys
 import threading
+import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -17,7 +19,9 @@ PNG = base64.b64encode(bytes.fromhex(
     "1f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082")).decode()
 TOOLS = [{"name": "count", "description": "Increment this session's counter.", "inputSchema": {"type": "object"}},
          {"name": "shot", "description": "Return an image.", "inputSchema": {"type": "object"}},
-         {"name": "fail", "description": "Always fails.", "inputSchema": {"type": "object"}}]
+         {"name": "fail", "description": "Always fails.", "inputSchema": {"type": "object"}},
+         {"name": "effect", "description": "Append one byte to path, answer after delay seconds.",
+          "inputSchema": {"type": "object"}}]
 
 
 def handle(message, state):
@@ -37,6 +41,12 @@ def handle(message, state):
         elif name == "shot":
             result = {"content": [{"type": "text", "text": "here"}, {"type": "image", "data": PNG,
                                                                       "mimeType": "image/png"}]}
+        elif name == "effect":
+            arguments = message["params"].get("arguments") or {}
+            with open(arguments["path"], "a") as handle:
+                handle.write("x")
+            time.sleep(float(arguments.get("delay", 0)))
+            result = {"content": [{"type": "text", "text": "effect-done"}]}
         elif name == "fail":
             result = {"content": [{"type": "text", "text": "it broke"}], "isError": True}
         else:

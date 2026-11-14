@@ -4,6 +4,11 @@ One daemon per declared server holds the server session for the whole run, so st
 their state between calls. It speaks JSON-RPC over the declared transport (sse, streamable-http or stdio) and
 exchanges requests with Core through files in its directory: Core writes ``req_<id>.json`` atomically, the daemon
 writes ``resp_<id>.json``. ``ready`` holds the server's initialize result; ``error`` a startup failure.
+
+Before sending a request the daemon takes its start token ``start_<id>`` (a symlink, "run"; see operations.py). Core
+takes it as "revoked" when it lost a request's publication and must know for certain that it was never sent; the
+daemon then never sends it. A sent request is waited on as long as the connection lives (up to ``ANSWER_CAP_S``), not
+the model's wait, so a late answer is still written and Core can show it.
 """
 
 SOURCE = r'''
@@ -13,6 +18,7 @@ D, KIND, TARGET = sys.argv[1], sys.argv[2], sys.argv[3:]
 LOCK = threading.Condition()
 GOT = {}
 STATE = {"closed": False}
+ANSWER_CAP_S = 3600
 
 
 def write(name, value):
@@ -181,12 +187,16 @@ def main():
             if path in served:
                 continue
             served.add(path)
+            ident = os.path.basename(path)[len("req_"):-len(".json")]
+            try:
+                os.symlink("run", os.path.join(D, "start_" + ident))
+            except FileExistsError:
+                continue  # Core cancelled it before the daemon took it: never sent
             with open(path) as handle:
                 request = json.load(handle)
 
             def answer(request=request):
-                reply = call(transport, request["id"], request["method"], request.get("params") or {},
-                             float(request.get("timeout", 120)))
+                reply = call(transport, request["id"], request["method"], request.get("params") or {}, ANSWER_CAP_S)
                 write("resp_%s.json" % request["id"], reply)
 
             threading.Thread(target=answer, daemon=True).start()

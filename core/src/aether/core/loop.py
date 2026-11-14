@@ -39,7 +39,7 @@ from .record import NEUTRAL_HOLD, Record
 from .repl import Repl, sub_llm
 from .review import Transport
 from .terminal import Terminals
-from . import agenda, browser, completion_notice, finish_settle, open_issues, stated_use, step0, workspace_brief
+from . import agenda, browser, completion_notice, finish_facts, finish_settle, open_issues, stated_use, step0, workspace_brief
 from .tools import system_prompt, tools, validate_call
 
 MAX_OUTPUT_TOKENS = 16_384  # was 32_768; see CoreConfig.max_output_tokens
@@ -90,6 +90,7 @@ class CoreConfig:
     record_commands: bool = False  # ...and at the first finish the task-shown commands no command contained (record)
     finish_hold: str = "off"  # "neutral": the first finish is held once with time left and no facts (control arm)
     browser: Any = None  # browser.Factory: a real browser in a sidecar on the task's network (browser); None = off
+    browser_session: bool = False  # one browser kept open across browser calls (browser_session_src; AETHER_CORE_BROWSER=session)
     image_region: bool = False  # view_image may show part of an image at full resolution (image_region)
     image_compare: bool = False  # view two independently selected images in the same observation
     # Reasoning effort for the request that first sees a newly attached image ("" = the run's own). 28 Oct: an
@@ -119,6 +120,7 @@ class CoreConfig:
     stable_facts: bool = False
     terminal_events: bool = False
     finish_settle: bool = False  # hold the first finish once if delivered files are still changing (finish_settle)
+    finish_facts: bool = False  # first finish returns delivered-state facts once (finish_facts)
     mcp_servers: tuple = ()  # opt-in (AETHER_CORE_MCP): task-declared MCP servers exposed through the mcp tool
     skills_dir: str | None = None  # opt-in (AETHER_CORE_SKILLS): the task-declared skills directory to list at start
     env_map: bool = False  # opt-in: repositories and listening services, measured once at start (env_map)
@@ -179,7 +181,7 @@ class _Session:
         self.deadline = self.started + timeout_s - STOP_MARGIN_S
         self.result = RunResult("timeout")
         self.env = DeadlineEnvironment(env, self.remaining)
-        self.browser = browser.BrowserSession(config.browser, self.env) if config.browser else None
+        self.browser = browser.BrowserSession(config.browser, self.env, persistent=config.browser_session) if config.browser else None
         self.terminals = Terminals(
             self.env, workdir, self.remaining, control_dir=config.control_dir,
             command_names=facts_probe.COMMANDS if config.managed_facts and config.role == "worker" else (),
@@ -348,6 +350,12 @@ async def run_agent(
                     raise
             if s.diffcheck:
                 await s.diffcheck.start()
+            if config.terminal_events:
+                # A result counts as delivered only if the call that carried it is in the conversation continued here.
+                history = resume.raw if isinstance(resume, ClmContext) else (resume or [])
+                ids = {m["tool_call_id"] for m in history if m.get("role") == "tool"}
+                s.terminals.conversation, s.terminals.delivery_tag = ids, lambda: s.call_id
+                s.repl.conversation, s.repl.delivery_tag = set(ids), s.terminals.delivery_tag
             python = await s.repl.start() if config.repl else ""
             see = config.images and images.available()
             s.tools = tools(
@@ -360,7 +368,9 @@ async def run_agent(
             if getattr(config, "mcp_servers", ()) and config.role == "worker":
                 from . import mcp
 
-                s.mcp = mcp.Mcp(s.env, config.control_dir, list(config.mcp_servers))
+                s.mcp = mcp.Mcp(s.env, config.control_dir, list(config.mcp_servers), adopt=config.terminal_events)
+                if config.terminal_events:
+                    s.mcp.conversation, s.mcp.delivery_tag = set(s.terminals.conversation), s.terminals.delivery_tag
                 s.tools = [*s.tools, mcp.tool(list(config.mcp_servers))]
             if config.workspace_search and config.role == "worker":
                 from . import workspace_search
@@ -378,7 +388,7 @@ async def run_agent(
                 s.tools = intent.with_intent(s.tools)
             if config.open_issues:
                 s.tools = open_issues.with_field(s.tools)
-            s.tools = browser.with_tool(s.tools) if config.browser else s.tools
+            s.tools = browser.with_tool(s.tools, config.browser_session) if config.browser else s.tools
             if s.state:
                 s.tools = runstate.with_state(s.tools)
             if s.facts and config.facts_pull:
@@ -872,6 +882,7 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
     if name == "terminal_wait":
         outcome = await s.terminals.wait_events(
             args["names"], mode=args.get("mode", "any"), wait_s=args.get("wait_s", 300),
+            quiet_s=args.get("quiet_s"),
         )
         s.trace("terminal_completion_frontier", **outcome)
         return json.dumps(outcome, ensure_ascii=False), False
@@ -1077,6 +1088,9 @@ def _with_state(s: _Session, out: str) -> str:
 
 
 async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
+    if s.config.role == "worker" and (facts := await finish_facts.at_finish(s)):
+        s.finish_wait_returned = True  # the facts include pending terminals; no second pending-terminal hold
+        return facts, False
     if s.config.terminal_events and s.config.role == "worker":
         pending = s.terminals.pending_names()
         s.result.extras["finish_terminal_frontier"] = pending
@@ -1223,7 +1237,8 @@ def _close(s: _Session) -> None:
             [x for x in roles if x.startswith(diffcheck.AUTHOR_ROLE)])} if s.diffcheck else None,
         "finish_hold": s.config.finish_hold,
         "switches": {"finish_settle": s.config.finish_settle, "completion_notices": s.config.completion_notices,
-                     "env_map": s.config.env_map, "terminal_result_delivery": s.config.terminal_result_delivery},
+                     "env_map": s.config.env_map, "terminal_result_delivery": s.config.terminal_result_delivery,
+                     "finish_facts": s.config.finish_facts},
     }
     s.trace(
         "end",

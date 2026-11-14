@@ -223,6 +223,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         parallel_reads=_parallel_reads(environ),
         terminal_events=_choice(environ, "AETHER_CORE_TERMINAL_EVENTS", REPL_MODES, "off") == "on",
         finish_settle=_choice(environ, "AETHER_CORE_FINISH_SETTLE", REPL_MODES, "off") == "on",
+        finish_facts=_choice(environ, "AETHER_CORE_FINISH_FACTS", REPL_MODES, "off") == "on",
         env_map=_choice(environ, "AETHER_CORE_ENV_MAP", REPL_MODES, "off") == "on",
         workspace_search=_choice(environ, "AETHER_CORE_WORKSPACE_SEARCH", REPL_MODES, "off") == "on",
         completion_notices=_choice(environ, "AETHER_CORE_COMPLETION_NOTICES", REPL_MODES, "off") == "on",

@@ -163,7 +163,8 @@ TERMINAL_WAIT = {
             "Use when the next action needs an exit or output. Core waits without model polling. "
             "mode=any returns the first available result; mode=all waits for all selected names. "
             "Other terminals keep running. A timeout lists pending commands. A selected command whose last "
-            "output line asks for input ends the wait early, listed under waiting_for_input."
+            "output line asks for input ends the wait early, listed under waiting_for_input. With quiet_s, a "
+            "selected command whose output has not grown for that long also ends it, listed under quiet."
         ),
         "parameters": {
             "type": "object",
@@ -171,6 +172,8 @@ TERMINAL_WAIT = {
                 "names": {"type": "array", "items": {"type": "string"}, "description": "1–8 terminal names."},
                 "mode": {"type": "string", "enum": ["any", "all"]},
                 "wait_s": {"type": "number", "description": "0–300 seconds. Default 300."},
+                "quiet_s": {"type": "number", "description": "Optional, 1–300: also return when a selected "
+                            "command prints nothing for this many seconds."},
             },
             "required": ["names"],
         },

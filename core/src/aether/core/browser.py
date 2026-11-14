@@ -27,13 +27,12 @@ import uuid
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
-from . import images
+from . import browser_ops, browser_session_src, images
 from .clone import HostRun, compose_container, host_run, identify
 from .env import Environment
 
 BROWSER_ENV = "AETHER_CORE_BROWSER"
 BROWSER_IMAGE = "aether-browser:1"
-MAX_OUT = 12_000
 GRACE_S = 120
 SCREENSHOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}\.png")
 SCREENSHOT_MAX = 8_000_000
@@ -65,8 +64,9 @@ TOOL = {
             "(`from playwright.sync_api import sync_playwright`) and browser-use (`from browser_use import Browser`) "
             "installed. Files listed in `files` are copied from this container to the same paths there first (a "
             "snapshot; changes there are not copied back). Each call is a fresh Python process; print what you need. "
-            "Returns a bounded stdout/stderr preview and the command status. To see a screenshot, save it under "
-            "/tmp and pass its PNG basename as screenshot."
+            "Returns a bounded stdout/stderr preview and the command status. A run that outlives wait_s keeps "
+            "running; its result is shown at the next browser call, and identical code attaches to it instead of "
+            "running again. To see a screenshot, save it under /tmp and pass its PNG basename as screenshot."
         ),
         "parameters": {
             "type": "object",
@@ -77,7 +77,8 @@ TOOL = {
                     "items": {"type": "string"},
                     "description": "Absolute paths (files or directories) in this container to copy over first.",
                 },
-                "wait_s": {"type": "number", "description": "Time limit in seconds (default 120, max 600)."},
+                "wait_s": {"type": "number", "description": "Seconds to wait for the result (default 120, max 600). "
+                           "The run continues after that until it ends or the task's time runs out."},
                 "screenshot": {"type": "string", "description": "Optional PNG basename written in /tmp by this call."},
             },
             "required": ["code"],
@@ -86,15 +87,31 @@ TOOL = {
 }
 
 
-def with_tool(definitions: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The tool list with ``browser`` before ``finish``."""
-    return [*definitions[:-1], TOOL, definitions[-1]]
+SESSION_NOTE = (
+    " One browser stays open for the whole task: `from aether_browser import page, snapshot, ref, shot`; `page()` "
+    "returns its current page, with tabs, cookies and logins kept between calls. `snapshot()` prints the page's "
+    "accessibility tree with element refs like [ref=e5]; `ref('e5')` is a Playwright locator for that element and "
+    "refuses if the page changed it since the snapshot; `shot('name', ref_or_locator)` saves /tmp/name.png. When the "
+    "call ends, a line reports open tabs, the current page and any console errors."
+)
+
+
+def with_tool(definitions: list[dict[str, Any]], persistent: bool = False) -> list[dict[str, Any]]:
+    """The tool list with ``browser`` before ``finish``; ``persistent`` describes the browser kept open."""
+    tool = TOOL
+    if persistent:
+        function = dict(TOOL["function"], description=TOOL["function"]["description"].replace(
+            " Each call is a fresh Python process; print what you need.",
+            " Each call is a fresh Python process; print what you need." + SESSION_NOTE))
+        tool = {**TOOL, "function": function}
+    return [*definitions[:-1], tool, definitions[-1]]
 
 
 class Sidecar:
     def __init__(self, cid: str, host: HostRun) -> None:
         self.cid, self.host, self.name = cid, host, f"aether-browser-{uuid.uuid4().hex[:12]}"
         self.started = False
+        self.runs = browser_ops.Runs(self.name, host)
 
     async def start(self, life_s: float) -> None:
         code, _, err = await self.host(
@@ -158,23 +175,6 @@ class Sidecar:
             if not published:
                 await self.host(["docker", "exec", self.name, "rm", "-rf", "--", stage], 10)
 
-    async def run(self, code: str, wait_s: float) -> str:
-        proc = await asyncio.create_subprocess_exec(
-            "docker", "exec", "-i", "-w", "/tmp", self.name, "timeout", "-k", "5", str(int(wait_s)), "python3", "-",
-            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
-        try:
-            out, _ = await asyncio.wait_for(proc.communicate(code.encode()), wait_s + 30)
-        except (TimeoutError, asyncio.CancelledError) as exc:
-            if proc.returncode is None:
-                proc.kill()
-            await proc.wait()
-            if isinstance(exc, asyncio.CancelledError):
-                raise
-            return "[browser] host wait expired before a result arrived. Remote command completion unconfirmed."
-        text = out.decode(errors="replace")
-        status = "" if proc.returncode == 0 else f"\n[browser command exit status {proc.returncode}]"
-        return _clip(text) + status
-
     async def screenshot(self, name: str) -> tuple[str, str]:
         target = f"/tmp/{name}"
         code, info, _ = await self.host(
@@ -204,14 +204,14 @@ Factory = Callable[[Environment], Awaitable[str]]  # the task container's proven
 def configure(config: Any, environment: Any, environ: Any) -> Any:
     """``config`` with a browser for a Harbor docker environment when AETHER_CORE_BROWSER=on ('off'/unset: unchanged)."""
     mode = (environ.get(BROWSER_ENV) or "off").strip()
-    if mode not in ("on", "off"):
-        raise ValueError(f"{BROWSER_ENV} must be on or off, got {mode!r}")
+    if mode not in ("on", "session", "off"):
+        raise ValueError(f"{BROWSER_ENV} must be on, session or off, got {mode!r}")
     if mode == "off":
         return config
     from dataclasses import replace
 
     from harbor.environments.docker.docker import _sanitize_docker_compose_project_name as name
-    return replace(config, browser=compose_factory(name(environment.session_id)))
+    return replace(config, browser=compose_factory(name(environment.session_id)), browser_session=mode == "session")
 
 
 def compose_factory(project: str) -> Factory:
@@ -222,8 +222,9 @@ def compose_factory(project: str) -> Factory:
 
 
 class BrowserSession:
-    def __init__(self, factory: Factory, env: Environment, host: HostRun = host_run) -> None:
-        self.factory, self.env, self.host = factory, env, host
+    def __init__(self, factory: Factory, env: Environment, host: HostRun = host_run, persistent: bool = False) -> None:
+        self.factory, self.env, self.host, self.persistent = factory, env, host, persistent
+        self.installed = False
         self.sidecar: Sidecar | None = None
         self.image: tuple[str, str] | None = None
 
@@ -239,14 +240,33 @@ class BrowserSession:
             car = self.sidecar
             if not car.started:
                 raise RuntimeError("sidecar startup was unconfirmed")
-            for path in args.get("files") or []:
-                await car.copy(path)
-            if screenshot:
-                status, _, _ = await self.host(["docker", "exec", car.name, "rm", "-f", "--", f"/tmp/{screenshot}"], 5)
-                if status:
-                    raise ValueError("prior browser screenshot could not be cleared")
+            if self.persistent and not self.installed:
+                await car.runs.install("aether_browser", browser_session_src.SOURCE)
+                self.installed = True
             wait = max(1.0, min(float(args.get("wait_s") or 120), 600.0, max(1.0, remaining_s - 10)))
-            out = await car.run(str(args.get("code", "")), wait)
+            call_key = browser_ops.key(args)
+            earlier = await self._settle(car.runs, call_key)
+            same = next((n for n, run in car.runs.open.items() if run["key"] == call_key), None)
+            if same is not None:
+                # A retry of code already running and not yet shown: attach to it, never run it twice.
+                head = f"[this call matches browser run #{same}, started earlier and not yet shown; not run again]\n"
+            else:
+                for path in args.get("files") or []:
+                    await car.copy(path)
+                if screenshot:
+                    status, _, _ = await self.host(["docker", "exec", car.name, "rm", "-f", "--", f"/tmp/{screenshot}"], 5)
+                    if status:
+                        raise ValueError("prior browser screenshot could not be cleared")
+                # The wait window is not the run's lifetime: a run that outlives it keeps going until it ends or the
+                # task's own time runs out, and its result is shown later.
+                life = max(wait, remaining_s - 10)
+                same, head = await car.runs.launch(str(args.get("code", "")), life, call_key), ""
+            result = await car.runs.collect(same, wait)
+            if result is None:
+                return earlier + head + (
+                    f"[browser run #{same} still running after {wait:g} s. Its result is shown at the next browser "
+                    "call; identical code attaches to it instead of running again.]")
+            out = earlier + head + result
             if screenshot:
                 try:
                     self.image = await car.screenshot(screenshot)
@@ -256,13 +276,26 @@ class BrowserSession:
             return f"error: browser unavailable ({type(exc).__name__}: {str(exc)[:300]})"
         return out
 
+    async def _settle(self, runs: browser_ops.Runs, call_key: str) -> str:
+        """Before a new call: resolve runs whose launch reply was lost, and show results that arrived since. Runs
+        identical to ``call_key`` are left for the caller to attach to."""
+        notes = []
+        for n, run in sorted(runs.open.items()):
+            if not run["launched"]:
+                token = await runs.resolve(n)
+                if token == "revoked":
+                    notes.append(f"[browser run #{n} never started: its launch failed before the runner took it, and "
+                                 "it is now cancelled. Nothing from it ran.]")
+                    continue
+                if token is None:
+                    continue
+            if run["key"] == call_key:
+                continue
+            result = await runs.collect(n, 0)
+            if result is not None:
+                notes.append(f"[result of earlier browser run #{n}, not shown before]\n{result}")
+        return "".join(note + "\n" for note in notes)
+
     async def close(self) -> None:
         if self.sidecar is not None:
             await self.sidecar.close()
-
-
-def _clip(text: str) -> str:
-    if len(text) <= MAX_OUT:
-        return text
-    half = MAX_OUT // 2
-    return f"{text[:half]}\n[... {len(text) - MAX_OUT} characters omitted ...]\n{text[-half:]}"

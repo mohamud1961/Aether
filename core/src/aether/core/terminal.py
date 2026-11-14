@@ -15,16 +15,16 @@ import shlex
 import time
 import uuid
 
-from .env import CONTROL_DIR, Environment, alive_test, run
+from .env import CONTROL_DIR, Environment, run
 from . import facts_probe, facts_replay, operations, terminal_adopt
 from .terminal_procs import describe_processes
 from .terminal_session import (  # noqa: F401 (some names re-exported)
     MAX_TERMINALS, Session, TerminalGone, TerminalLifecycle, _ASKS, _text, clean,
 )
-from .transfer import INLINE_BYTES, atomic_write, put_bytes
+from .transfer import INLINE_BYTES, put_bytes
 
-VIEW_HEAD = 3_000
-VIEW_TAIL = 8_000
+from .terminal_io import TerminalIO, _TerminalSequenceClaimed
+
 # One tool call blocks the loop at most this long, so scheduled reviews and the elapsed-time readout reach the
 # model while long jobs run (D1 extract-moves: one 902 s wait skipped a progress review and left 20 s at the end).
 MAX_WAIT_S = 300.0
@@ -32,8 +32,6 @@ KEYS_SILENT_S = 10.0  # keys with no output at all return after this; empty inpu
 PROMPT_QUIET_S = 5.0  # a running command quiet this long with a prompt as its last line returns early
 _NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 _HEX = re.compile(r"\\x([0-9a-fA-F]{2})")
-# seq, exit, optional per-stage exits of the command's last pipeline (bash only, joined by "."), cwd
-_MARK = re.compile(r"__AETHER_DONE_(\d+)_(\d+)(?:_([\d.]+))?__ ?([^\n]*)\n?")
 # bash: a RETURN trap fires as the sourced command file finishes, while PIPESTATUS still holds the stage exits of
 # its last pipeline. The body is run unchanged (an appended capture line would land inside an unterminated
 # heredoc) and the exit is the file's own. It is installed only when the model has no RETURN trap and removed only
@@ -51,14 +49,9 @@ _XSTATE = '__aether_x=; [ "${-#*x}" = "$-" ] || __aether_x=1; set +x; '
 _QUIET = "{ " + _XSTATE + "} 2>/dev/null; "
 _TRACE_BACK = '{ [ -z "$__aether_x" ] || set -x; } 2>/dev/null; '
 _CAPTURE = "{ __aether_s=$?; " + _XSTATE + "} 2>/dev/null"  # re-read: the command may have run set -x or set +x
-_REVOKED = "__AETHER_REVOKED__"
 
 
-class _TerminalSequenceClaimed(RuntimeError):
-    """Another controller reserved this command sequence in the sandbox."""
-
-
-class Terminals(TerminalLifecycle):
+class Terminals(TerminalIO, TerminalLifecycle):
     def __init__(
         self, env: Environment, workdir: str, clock, control_dir: str = CONTROL_DIR,
         command_names: tuple[str, ...] = (), capture_state: bool = False, preserve_existing: bool = False,
@@ -79,6 +72,10 @@ class Terminals(TerminalLifecycle):
         self._name_locks: dict[str, asyncio.Lock] = {}
         self._generations: dict[str, int] = {}
         self.adoptions: list[dict] = []  # terminals rebuilt from an earlier controller's records (terminal_adopt)
+        # Delivery authority (operations.seen): the id of the tool call being answered, recorded with each delivery,
+        # and the tool call ids of the conversation this controller continues (None: trust delivery records).
+        self.delivery_tag = lambda: ""
+        self.conversation: set[str] | None = None
         self._launching: set[str] = (
             set()
         )  # PID files resolve a lost launch reply during cleanup
@@ -93,165 +90,15 @@ class Terminals(TerminalLifecycle):
     def pending_names(self) -> list[str]:
         return sorted(name for name, session in self._sessions.items() if session.pending)
 
-    async def wait_events(self, names: list[str], *, mode: str, wait_s: float) -> dict:
+    async def wait_events(self, names: list[str], *, mode: str, wait_s: float, quiet_s: float | None = None) -> dict:
         """Observe an explicitly selected set of existing commands."""
         from .terminal_wait import wait
 
-        return await wait(self, names, mode=mode, wait_s=wait_s)
+        return await wait(self, names, mode=mode, wait_s=wait_s, quiet_s=quiet_s)
 
     def observed_session(self, name: str) -> dict | None:
         """Return only session facts established by its last terminal observation."""
         return facts_probe.terminal_observation(self._sessions.get(name), self._generations.get(name))
-
-    async def _write(
-        self,
-        session: Session,
-        text: str,
-        *,
-        cmd: tuple[str, bytes] | None = None,
-        wait: tuple[int, float] | None = None,
-    ) -> tuple[int, re.Match | None, bool] | None:
-        """Deliver input in one exec: the command file and the pending line (each written atomically, staged and
-        committed bytes checked against their digest), then the fifo after the liveness check.
-
-        With ``wait`` (seq, seconds) the same exec also waits in the container, up to 3 s, for that command's
-        completion receipt and returns the (size, marker, alive) probe ``_poll`` would have returned.
-        """
-        q = shlex.quote
-        log = q(session.log)
-        tracks_dispatch = self._preserve_existing and wait is not None and wait[0] != 0
-        # A done_<seq> already on disk (stale, or planted before the send) must not complete this command.
-        clear = [f"rm -f {q(f'{session.root}/done_{wait[0]}')} || exit 7"] if wait is not None and wait[0] else []
-        # Preserve the last command's dispatch record when the user types into
-        # it or interrupts it. The input itself has no command sequence.
-        input_name = "input" if self._preserve_existing and wait is None else "pending"
-        source = q(f"{session.root}/{input_name}")
-        steps = clear + ([atomic_write(*cmd, 4)] if cmd else []) + [
-            atomic_write(f"{session.root}/{input_name}", text.encode(), 5),
-            f"{alive_test(session.pid)} && [ -p {q(session.fifo)} ] || {{ echo dead; exit 3; }}",
-            f"cat {source} > {q(session.fifo)} || exit 6",
-        ]
-        if tracks_dispatch:
-            steps = terminal_adopt.with_offset_record(steps, session.root, wait[0])
-            claim = q(f"{session.root}/claim_{wait[0]}")
-            # The in-memory lock does not coordinate resumed controllers. Take
-            # the sequence before clearing its receipt or touching the FIFO.
-            steps.insert(0, f"mkdir {claim} 2>/dev/null || {{ if [ -d {claim} ]; then exit 10; fi; exit 11; }}")
-        if input_name == "input":
-            steps.append(f"rm -f {source}")
-        if wait is not None:
-            seq, ticks = wait[0], int(max(0.0, min(wait[1], 3.0)) / 0.1)
-            # The receipt is looked for before the size is taken, as in _poll.
-            steps.append(
-                f"i=0; m=''; while [ -r {log} ]; do m=$({self._probe(session, seq)});"
-                f' [ -n "$m" ] && break; [ $i -ge {ticks} ] && break; {alive_test(session.pid)} || break; '
-                f"sleep 0.1; i=$((i+1)); done; printf '%s\\n' \"$m\"; "
-                f"{alive_test(session.pid)} && echo __ALIVE__ || echo __DEAD__; echo __SIZE__; wc -c < {log} 2>/dev/null; true"
-            )
-        if tracks_dispatch:
-            session.dispatch_unconfirmed = True
-        res = await run(self._env, "; ".join(steps), timeout_s=20)
-        if tracks_dispatch and res.code == 10:
-            raise _TerminalSequenceClaimed(session.name)
-        if res.code == 3 and "dead" in res.stdout:
-            if tracks_dispatch:
-                session.dispatch_unconfirmed = False  # failure preceded the FIFO write
-            raise TerminalGone(f"terminal {session.name} is not running")
-        if res.code != 0:
-            raise RuntimeError(
-                f"could not send input to terminal {session.name}: {(res.stderr or res.stdout).strip()[:200]}"
-            )
-        if tracks_dispatch:
-            session.dispatch_unconfirmed = False
-        if wait is None:
-            return None
-        try:
-            return self._probe_result(session, wait[0], res.stdout)
-        except TerminalGone:  # the input was delivered; _collect observes and reports the missing log itself
-            return None
-
-    def _probe(self, session: Session, seq: int | None) -> str:
-        """Shell words printing the completion receipt of command ``seq`` (nothing while it runs)."""
-        q = shlex.quote
-        # Arbitrary command stdout must never be treated as an authoritative
-        # shell completion receipt. Only the shell wrapper writes done_<seq>.
-        # The startup marker (seq 0) predates this per-command mechanism.
-        if seq is None:
-            return "true"
-        if seq == 0:
-            return (
-                f"tail -c +{session.cursor + 1} {q(session.log)} "
-                f"| grep -a -o '__AETHER_DONE_0_[0-9._]*__ [^[:cntrl:]]*' | tail -n 1"
-            )
-        done = f"cat {q(session.root + '/done_' + str(seq))} 2>/dev/null"
-        if not self._preserve_existing:
-            return done
-        # Another controller may have cancelled this command before the shell took it (operations.py).
-        token = q(f"{session.root}/start_{seq}")
-        return f'{{ {done} || {{ [ "$(readlink {token} 2>/dev/null)" = {operations.REVOKED} ] && echo {_REVOKED}; }}; }}'
-
-    def _probe_result(
-        self, session: Session, seq: int | None, out: str
-    ) -> tuple[int, re.Match | None, bool]:
-        rest, _, size_text = out.rpartition("__SIZE__\n")
-        if (
-            not size_text.strip().isdigit()
-        ):  # the log is gone (the control directory was deleted)
-            raise TerminalGone(
-                f"the log of terminal {session.name} ({session.log}) is missing"
-            )
-        size = int(size_text.strip())
-        cleaned = clean(rest)
-        mark = None if seq is None else _MARK.search(cleaned)
-        if mark is not None and int(mark.group(1)) != seq:
-            mark = None
-        if mark is None and seq and _REVOKED in cleaned:
-            session.revoked = seq
-        if mark is not None:
-            suffix = mark.string[mark.end():]
-            session.pending_resolution, session.pending_env_names = facts_replay.parse_terminal_receipt(self._command_names, suffix, self._capture_state)
-            bare = suffix in ("__ALIVE__\n", "__DEAD__\n")
-            session.cwd_receipt_ambiguous = cleaned != rest or not (bare or session.pending_resolution is not None)
-        return size, mark, "__ALIVE__" in rest
-
-    async def _poll(
-        self, session: Session, seq: int | None
-    ) -> tuple[int, re.Match | None, bool]:
-        q = shlex.quote
-        # The marker is looked for before the size is taken: the other way round, a command that finished in
-        # between showed its marker with the output cut at the earlier size (the rest came with the next call).
-        res = await run(
-            self._env,
-            f"{self._probe(session, seq)}; {alive_test(session.pid)} && echo __ALIVE__ || echo __DEAD__; "
-            f"echo __SIZE__; wc -c < {q(session.log)} 2>/dev/null",
-        )
-        return self._probe_result(session, seq, res.stdout)
-
-    async def _read(self, session: Session, start: int, end: int, delivered: int = 0) -> str:
-        # The bytes travel as base64 and are decoded here: the environment decodes command output as strict UTF-8, so
-        # one byte that is not (binary output, or a character cut by head -c) failed the read, and as the cursor did
-        # not move every later call reread it and failed too (path-tracing baseline: 21 calls).
-        q = shlex.quote
-        n = end - start
-        # A consumed completion receipt is recorded in the same exec, so a later controller never shows it again.
-        record = f"; {operations.mark_delivered(session.root, delivered)}" if delivered and self._preserve_existing else ""
-        if n <= VIEW_HEAD + VIEW_TAIL:
-            res = await run(
-                self._env, f"tail -c +{start + 1} {q(session.log)} | head -c {n} | base64{record}"
-            )
-            return _text(res.stdout)
-        res = await run(
-            self._env,
-            f"tail -c +{start + 1} {q(session.log)} | head -c {VIEW_HEAD} | base64; "
-            f"echo '#SPLIT#'; tail -c +{start + 1} {q(session.log)} "
-            f"| head -c {n} | tail -c {VIEW_TAIL} | base64{record}",
-        )
-        head, _, tail = res.stdout.partition("#SPLIT#")
-        head, tail = _text(head), _text(tail)
-        return (
-            f"{head}\n…[{n - VIEW_HEAD - VIEW_TAIL} bytes omitted; full output is in {session.log} "
-            f"at byte offsets {start}-{end}; use grep/sed/tail on it]…\n{tail}"
-        )
 
 
     async def use(

@@ -335,3 +335,47 @@ def test_without_preservation_no_records_are_written(tmp_path):
             await stock.close()
 
     asyncio.run(go())
+
+
+@pytest.mark.parametrize("reached_model", [False, True])
+def test_a_delivery_counts_only_if_its_call_is_in_the_continued_conversation(tmp_path, reached_model):
+    """Exactly-once delivery across a controller crash. The first controller reads a result while answering call
+    ``call_1`` and dies. If that call's result never reached the conversation the second controller continues, the
+    result is shown again, once. If it did, it is not shown again."""
+    async def go():
+        first = controller(tmp_path)
+        first.conversation, first.delivery_tag = set(), lambda: "call_1"
+        assert "only-once-output" in await first.use(name="job", input="echo only-once-output; (exit 5)", wait_s=5)
+        assert (tmp_path / "ctl" / "term" / "job" / "delivered_1").read_text() == "call_1"
+        del first
+
+        second = controller(tmp_path)
+        second.conversation = {"call_1"} if reached_model else {"call_0"}
+        second.delivery_tag = lambda: "call_2"
+        try:
+            seen = await second.wait_events(["job"], mode="all", wait_s=2)
+            shown = [c for c in seen["completed"] if "only-once-output" in c["observation"]]
+            assert seen["adopted"][0]["state"] == ("delivered" if reached_model else "completed")
+            assert len(shown) == (0 if reached_model else 1)
+            assert not (await second.wait_events(["job"], mode="all", wait_s=0))["completed"]
+            assert "[exit 0" in await second.use(name="job", input="echo next", wait_s=5)
+        finally:
+            await second.close()
+
+    asyncio.run(go())
+
+
+def test_without_a_conversation_record_a_delivery_mark_is_trusted(tmp_path):
+    """Compatibility: a controller given no conversation (None) trusts the mark, as before."""
+    async def go():
+        first = controller(tmp_path)
+        assert "out-1" in await first.use(name="job", input="echo out-1", wait_s=5)
+        del first
+        second = controller(tmp_path)
+        try:
+            seen = await second.wait_events(["job"], mode="all", wait_s=0)
+            assert seen["adopted"][0]["state"] == "delivered" and not seen["completed"]
+        finally:
+            await second.close()
+
+    asyncio.run(go())

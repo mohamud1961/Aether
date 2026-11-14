@@ -80,7 +80,7 @@ def test_declared_server_tools_listed_and_called_with_one_persistent_session(tmp
     assert result.status == "finished"
     assert not result.extras["cleanup_errors"]
     assert "mcp" in [t["function"]["name"] for t in client.requests[0]["tools"]]
-    assert listed.startswith("3 tools:") and "- count: Increment" in listed
+    assert listed.startswith("4 tools:") and "- count: Increment" in listed
     assert c1.startswith("count=1") and c2.startswith("count=2")  # the same server session across calls
     assert "here" in img and "[image returned by the server, saved at " in img
     image = img.split("saved at ")[1].split("]")[0]

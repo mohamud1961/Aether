@@ -27,10 +27,6 @@ def test_the_sidecar_joins_the_proven_container_network_and_expires(monkeypatch)
     async def factory(env):
         return "c" * 64
 
-    async def run(self, code, wait_s):
-        return f"ran {code!r} within {wait_s:.0f}"
-
-    monkeypatch.setattr(browser.Sidecar, "run", run)
     session = browser.BrowserSession(factory, Env(), host=host)
     out = asyncio.run(session.use({"code": "print(1)", "files": ["rel/path"]}, 500.0))
     start = calls[0]
@@ -53,3 +49,10 @@ def test_a_sidecar_that_cannot_start_is_a_plain_tool_error():
 
 def test_off_by_default():
     assert CoreConfig().browser is None
+
+
+def test_the_session_module_shipped_to_the_sidecar_compiles():
+    """It runs only inside the sidecar, so a syntax error would otherwise surface only at the model's first call."""
+    from aether.core.browser_session_src import SOURCE
+
+    compile(SOURCE, "aether_browser.py", "exec")

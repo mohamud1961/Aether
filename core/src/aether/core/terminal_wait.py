@@ -16,23 +16,31 @@ from .terminal_session import _ASKS, clean
 QUIET_S = 4.0
 
 
-async def _asking(terminal, session, quiet_since: dict, now: float) -> str | None:
-    """The last output line when a pending command has been quiet for QUIET_S and that line asks for input.
-
-    Such a command cannot finish until someone answers, so a wait on it would only run out its time."""
+async def _stalled(terminal, session, quiet_since: dict, now: float,
+                   quiet_s: float | None) -> tuple[str, str] | None:
+    """("asking", last line) when a pending command has been quiet for QUIET_S and its last line asks for input:
+    it cannot finish until someone answers, so a wait on it would only run out its time. ("quiet", last line) when the
+    model chose ``quiet_s`` and the command's output has not grown for that long (no output at all counts from the
+    start of the wait). None otherwise."""
     size, mark, alive = await terminal._poll(session, session.pending)
-    if mark is not None or not alive or size <= session.cursor:
+    if mark is not None or not alive:
         quiet_since.pop(session.name, None)
         return None
     since = quiet_since.get(session.name)
     if since is None or since[0] != size:
         quiet_since[session.name] = (size, now)
         return None
-    if now - since[1] < QUIET_S:
-        return None
-    tail = clean(await terminal._read(session, max(session.cursor, size - 300), size)).rstrip("\n")
-    last = tail.rsplit("\n", 1)[-1]
-    return last[-200:] if _ASKS.search(last) else None
+    quiet_for = now - since[1]
+    last = ""
+    if size > session.cursor and quiet_for >= QUIET_S or quiet_s is not None and quiet_for >= quiet_s:
+        if size > session.cursor:
+            tail = clean(await terminal._read(session, max(session.cursor, size - 300), size)).rstrip("\n")
+            last = tail.rsplit("\n", 1)[-1][-200:]
+        if size > session.cursor and quiet_for >= QUIET_S and _ASKS.search(last):
+            return "asking", last
+        if quiet_s is not None and quiet_for >= quiet_s:
+            return "quiet", last
+    return None
 
 
 async def _ready(terminal, pending, duration):
@@ -56,14 +64,17 @@ async def _ready(terminal, pending, duration):
             if index.isdigit() and int(index) < len(names)]
 
 
-async def wait(terminal, names, *, mode, wait_s):
+async def wait(terminal, names, *, mode, wait_s, quiet_s=None):
     if (not isinstance(names, list) or not 1 <= len(names) <= 8
             or any(not isinstance(name, str) or not _NAME.fullmatch(name) for name in names)
             or len(set(names)) != len(names)):
         raise ValueError("terminal_wait requires 1–8 distinct terminal names")
     if mode not in ("any", "all") or type(wait_s) not in (int, float) or not math.isfinite(wait_s) or not 0 <= wait_s <= 300:
         raise ValueError("terminal_wait requires mode any/all and a wait of 0–300 seconds")
-    pending, completed, unknown, adopted, asking = {}, [], [], [], []
+    if quiet_s is not None and (type(quiet_s) not in (int, float) or not math.isfinite(quiet_s)
+                                or not 1 <= quiet_s <= 300):
+        raise ValueError("terminal_wait quiet_s must be 1–300 seconds")
+    pending, completed, unknown, adopted, asking, quiet = {}, [], [], [], [], []
     for name in names:
         try:
             async with terminal._name_locks.setdefault(name, asyncio.Lock()):
@@ -125,12 +136,15 @@ async def wait(terminal, names, *, mode, wait_s):
                     if terminal._sessions.get(name) is not session or session.pending != sequence:
                         continue
                     try:
-                        line = await _asking(terminal, session, quiet_since, time.monotonic())
+                        stalled = await _stalled(terminal, session, quiet_since, time.monotonic(), quiet_s)
                     except (OSError, RuntimeError, TimeoutError):
-                        line = None
-                if line is not None:
-                    asking.append({"name": name, "sequence": sequence, "last_line": line})
-            if asking:
+                        stalled = None
+                if stalled is not None:
+                    kind, line = stalled
+                    (asking if kind == "asking" else quiet).append(
+                        {"name": name, "sequence": sequence, "last_line": line,
+                         **({"quiet_s": round(time.monotonic() - quiet_since[name][1], 1)} if kind == "quiet" else {})})
+            if asking or quiet:
                 break
         # A hint can outlive its marker. Yield before observing again.
         if ready and pending:
@@ -142,4 +156,6 @@ async def wait(terminal, names, *, mode, wait_s):
         result["adopted"] = adopted
     if asking:  # still pending; listed because they cannot finish without input
         result["waiting_for_input"] = asking
+    if quiet:  # still pending; listed because their output stopped for the chosen quiet_s
+        result["quiet"] = quiet
     return result
