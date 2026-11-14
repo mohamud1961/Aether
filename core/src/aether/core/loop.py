@@ -1081,9 +1081,13 @@ async def _finish(s: _Session, args: dict[str, Any]) -> tuple[str, bool]:
         s.result.extras["finish_terminal_frontier"] = pending
         if pending and s.remaining() > 15 and not s.finish_wait_returned:
             s.finish_wait_returned = True
-            observed = await s.terminals.wait_events(pending[:8], mode="all", wait_s=min(300, s.remaining() - 10))
+            # A foreground command may be the service the task asks to leave
+            # running. Give near-term exits a chance to arrive without using
+            # the remaining solve budget as an implicit join.
+            observed = await s.terminals.wait_events(pending[:8], mode="all", wait_s=1.0)
             s.trace("finish_pending_terminal_observation", **observed)
-            return "Foreground terminal state at finish. Assess these results before finishing.\n" + json.dumps(observed), False
+            return ("Foreground terminal state at finish. If a pending command is needed, wait for its result. "
+                    "If it should remain running, you can finish again.\n" + json.dumps(observed), False)
     s.result.extras["finish_args"] = args
     if s.config.role == "worker" and (settle := await finish_settle.at_finish(s)):
         return settle, False
