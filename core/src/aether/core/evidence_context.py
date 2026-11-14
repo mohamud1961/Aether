@@ -20,10 +20,52 @@ from typing import Any
 
 from .clm import ClmContext
 
-CONTEXT_EVIDENCE_MODES = ("off", "history_index")
+CONTEXT_EVIDENCE_MODES = ("off", "history_index", "path_lookup")
 MAX_ENTRIES = 3
 MAX_VERIFIED_SOURCE_CHARS = 96_000
 READ_PAGE_CHARS = 12_000
+
+LOCATE_TOOL = {"type": "function", "function": {
+    "name": "find_history",
+    "description": "Find earlier read_file results for an exact path as it appeared in the call. "
+                   "Use read_history with a returned message ID for the original observation. "
+                   "For current bytes, read the file.",
+    "parameters": {"type": "object", "properties": {
+        "path": {"type": "string"},
+    }, "required": ["path"]},
+}}
+
+
+def locate_path(ctx: ClmContext, path: str) -> str:
+    if not path or len(path) > 1024 or "\0" in path:
+        raise ValueError("expected one exact recorded file path")
+    pending: dict[str, tuple[int, dict]] = {}
+    records = []
+    for i, item in enumerate(ctx.raw):
+        if item.get("role") == "assistant":
+            pending = {call["id"]: (i, call["function"]) for call in item.get("tool_calls", []) or []}
+            continue
+        if item.get("role") != "tool":
+            continue
+        bound = pending.pop(item.get("tool_call_id"), None)
+        if not bound:
+            continue
+        owner, function = bound
+        if function["name"] != "read_file":
+            continue
+        try:
+            arguments = json.loads(function["arguments"])
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(arguments, dict) or arguments.get("path") != path:
+            continue
+        if ctx.original_message_digest(owner) is None:
+            continue
+        digest = ctx.original_message_digest(i)
+        if digest is not None:
+            records.append({"message_id": i, "sha256": digest})
+    return json.dumps({"source": "historical read_file observations", "path": path,
+                       "records": records[-MAX_ENTRIES:][::-1], "matched": len(records)}, ensure_ascii=True)
 
 
 def _source_json(msg: dict[str, Any]) -> str:

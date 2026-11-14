@@ -77,3 +77,49 @@ def test_combined_clm_recovery_and_default_off_preservation(tmp_path,notes):
     assert normalized(off[2]['messages'])==normalized(on[2]['messages'][:-1])
     assert off[2]['tools']==on[2]['tools'] and off[2]['model']==on[2]['model']
     assert all(not any('Historical Core tool references;' in str(m.get('content')) for m in r['messages']) for r in on[3:])
+
+
+def test_exact_path_finds_historical_result_after_overwrite_and_context_edit(tmp_path):
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "original").write_text("first measurement α\n")
+    (work / "other").write_text("different input\n")
+    mirror = tmp_path / "control" / "live"
+    history = tmp_path / "control" / "history"
+    class RecoveringClient(ScriptedClient):
+        async def _create(self, **kwargs):
+            tools = {m["tool_call_id"]: m["content"] for m in kwargs["messages"] if m["role"] == "tool"}
+            if len(self.requests) == 5:
+                locator, _ = json.JSONDecoder().raw_decode(tools["locate"])
+                self.script.insert(0, call("read_history", {"message_id": locator["records"][0]["message_id"]}, "retrieve"))
+            if len(self.requests) == 7:
+                archived, _ = json.JSONDecoder().raw_decode(tools["retrieve"].split("\n", 1)[1])
+                measured_line = next(line for line in archived["content"].splitlines() if "measurement" in line)
+                self.script.insert(0, call("write_file", {"path": "comparison", "content": measured_line.split()[-1]}, "deliver"))
+            return await super()._create(**kwargs)
+
+    client = RecoveringClient([
+        call("read_file", {"path": "original"}, "early"),
+        call("read_file", {"path": "other"}, "other"),
+        call("write_file", {"path": "original", "content": "current data\n"}, "replace"),
+        call("write_file", {"path": str(mirror), "content": "[[CTX_TURN 0 role=user]]\nOnly keep these notes."}, "compact"),
+        call("find_history", {"path": "original"}, "locate"),
+        call("read_file", {"path": "original"}, "current"),
+        call("finish", {"summary": "Done."}, "finish"),
+    ])
+    result = asyncio.run(run_agent(
+        env=LocalEnv(work), task="Compare old and current contents.", workdir=str(work),
+        provider=ChatProvider(client, model="offline", params={}), timeout_s=40, trace=Trace(tmp_path / "trace"),
+        config=CoreConfig(context="clm", evidence_presentation="path_lookup", control_dir=str(mirror.parent),
+                          clm=ClmSettings(attest_original_history=True, mirror_path=str(mirror), history_path=str(history))),
+    ))
+    assert result.status == "finished"
+    assert not any("first measurement" in str(m.get("content")) for m in client.requests[4]["messages"])
+    messages = {m["tool_call_id"]: m["content"] for m in client.requests[-1]["messages"] if m["role"] == "tool"}
+    located, _ = json.JSONDecoder().raw_decode(messages["locate"])
+    original, _ = json.JSONDecoder().raw_decode(messages["retrieve"].split("\n", 1)[1])
+    assert located["matched"] == 1 and located["records"][0]["message_id"] == 1
+    assert located["records"][0]["sha256"] == hashlib.sha256(json.dumps(original, ensure_ascii=False).encode()).hexdigest()
+    assert original["tool_call_id"] == "early" and "first measurement α" in original["content"]
+    assert "current data" in messages["current"] and (work / "original").read_text() == "current data\n"
+    assert (work / "comparison").read_text() == "α"

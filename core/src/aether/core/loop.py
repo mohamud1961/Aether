@@ -139,8 +139,8 @@ class CoreConfig:
             raise ValueError(f"evidence_presentation must be one of {CONTEXT_EVIDENCE_MODES}")
         if self.evidence_presentation != "off" and self.context != "clm":
             raise ValueError("evidence_presentation requires Core CLM history")
-        if self.evidence_presentation == "history_index" and not self.clm.attest_original_history:
-            raise ValueError("history_index requires append-time original-history attestation")
+        if self.evidence_presentation != "off" and not self.clm.attest_original_history:
+            raise ValueError("Evidence retrieval requires append-time original-history attestation")
         self.clm.check_request_limit(self.max_output_tokens)
 
 
@@ -363,6 +363,10 @@ async def run_agent(
                 from . import workspace_search
 
                 s.tools.append(workspace_search.TOOL)
+            if config.evidence_presentation == "path_lookup" and config.role == "worker":
+                from .evidence_context import LOCATE_TOOL
+
+                s.tools.append(LOCATE_TOOL)
             if config.image_region and see:
                 s.tools = image_region.with_region(s.tools)
             if config.image_compare and see:
@@ -522,7 +526,7 @@ async def _loop(s: _Session) -> None:
         if s.clm and not await _fit_context(s):
             return
         request = s.clm.request() if s.clm else project(s.messages, tight=tight)
-        if s.config.evidence_presentation != "off":
+        if s.config.evidence_presentation == "history_index":
             from .evidence_context import select_context
 
             generation = (
@@ -837,6 +841,10 @@ async def _save(s: _Session, out: str) -> str:
 
 
 async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, bool]:
+    if name == "find_history" and s.clm:
+        from .evidence_context import locate_path
+
+        return locate_path(s.clm, args["path"]), False
     if name == "search_workspace":
         from . import workspace_search
 
