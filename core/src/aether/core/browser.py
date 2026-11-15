@@ -120,10 +120,14 @@ class Sidecar:
     @staticmethod
     async def find(cid: str, host: HostRun) -> str | None:
         """The running sidecar an earlier controller started for task container ``cid``, if exactly one."""
-        code, out, _ = await host(["docker", "ps", "--filter", f"label=aether.browser.cid={cid}",
-                                   "--format", "{{.Names}}"], 15)
+        code, out, err = await host(["docker", "ps", "--filter", f"label=aether.browser.cid={cid}",
+                                     "--format", "{{.Names}}"], 15)
+        if code != 0:
+            raise RuntimeError(f"browser sidecar lookup failed: {err.strip()[:200]}")
         names = out.split()
-        return names[0] if code == 0 and len(names) == 1 else None
+        if len(names) > 1:
+            raise RuntimeError("more than one browser sidecar matched the task container")
+        return names[0] if names else None
 
     async def start(self, life_s: float) -> None:
         code, _, err = await self.host(
@@ -257,20 +261,21 @@ class BrowserSession:
 
     async def use(self, args: dict[str, Any], remaining_s: float) -> str:
         self.image = None
+        prior_results: list[str] = []
         try:
             screenshot = args.get("screenshot")
             if screenshot is not None and (not SCREENSHOT_NAME.fullmatch(screenshot) or not images.available()):
                 raise ValueError("screenshot requires a PNG basename and image support")
-            adopted = ""
             if self.sidecar is None:
                 cid = await self.factory(self.env)
                 name = await Sidecar.find(cid, self.host) if self.adopt else None
-                self.sidecar = Sidecar(cid, self.host, name)
-                self.sidecar.runs.conversation, self.sidecar.runs.delivery_tag = self.conversation, self.delivery_tag
+                candidate = Sidecar(cid, self.host, name)
+                candidate.runs.conversation, candidate.runs.delivery_tag = self.conversation, self.delivery_tag
                 if name:
-                    adopted = await self.sidecar.runs.adopt()
-                else:
-                    await self.sidecar.start(remaining_s)
+                    prior_results.append(await candidate.runs.adopt())
+                self.sidecar = candidate
+                if not name:
+                    await candidate.start(remaining_s)
             car = self.sidecar
             if not car.started:
                 raise RuntimeError("sidecar startup was unconfirmed")
@@ -279,7 +284,8 @@ class BrowserSession:
                 self.installed = True
             wait = max(1.0, min(float(args.get("wait_s") or 120), 600.0, max(1.0, remaining_s - 10)))
             call_key = browser_ops.key(args)
-            earlier = adopted + await self._settle(car.runs, call_key)
+            await self._settle(car.runs, call_key, prior_results)
+            earlier = "".join(prior_results)
             same = next((n for n, run in car.runs.open.items() if run["key"] == call_key), None)
             if same is not None:
                 # A retry of code already running and not yet shown: attach to it, never run it twice.
@@ -315,19 +321,18 @@ class BrowserSession:
                 await car.runs.deliver(same)
                 del car.runs.open[same]
         except Exception as exc:
-            return f"error: browser unavailable ({type(exc).__name__}: {str(exc)[:300]})"
+            self.image = None
+            return "".join(prior_results) + f"error: browser unavailable ({type(exc).__name__}: {str(exc)[:300]})"
         return out
 
-    async def _settle(self, runs: browser_ops.Runs, call_key: str) -> str:
-        """Before a new call: resolve runs whose launch reply was lost, and show results that arrived since. Runs
-        identical to ``call_key`` are left for the caller to attach to."""
-        notes = []
+    async def _settle(self, runs: browser_ops.Runs, call_key: str, notes: list[str]) -> None:
+        """Keep each prior result as it is collected. A later failure can occur after its delivery mark."""
         for n, run in sorted(runs.open.items()):
             if not run["launched"]:
                 token = await runs.resolve(n)
                 if token == "revoked":
                     notes.append(f"[browser run #{n} never started: its launch failed before the runner took it, and "
-                                 "it is now cancelled. Nothing from it ran.]")
+                                 "it is now cancelled. Nothing from it ran.]\n")
                     continue
                 if token is None:
                     continue
@@ -335,8 +340,7 @@ class BrowserSession:
                 continue
             result = await runs.collect(n, 0)
             if result is not None:
-                notes.append(f"[result of earlier browser run #{n}, not shown before]\n{result}")
-        return "".join(note + "\n" for note in notes)
+                notes.append(f"[result of earlier browser run #{n}, not shown before]\n{result}\n")
 
     async def close(self) -> None:
         if self.sidecar is not None:

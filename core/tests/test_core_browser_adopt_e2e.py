@@ -132,3 +132,69 @@ def test_known_bad_without_adoption_an_identical_call_runs_twice(tmp_path):
     assert "effect-done" in second
     time.sleep(1.5)
     assert effects(tmp_path) == 2
+
+
+def test_a_failed_sidecar_lookup_cannot_start_a_second_sidecar(tmp_path):
+    running = make_host({CID: NAME})
+    first = asyncio.run(first_controller(tmp_path, running, set(), delay=0, wait_s=10))
+    assert "effect-done" in first
+    starts = []
+
+    async def unreachable(argv, timeout_s):
+        if argv[:2] == ["docker", "ps"]:
+            return 1, "", "temporary lookup failure"
+        if argv[:2] == ["docker", "run"]:
+            starts.append(argv)
+        return await running(argv, timeout_s)
+
+    args = {"code": code(tmp_path, 0), "wait_s": 10}
+    failed = asyncio.run(second_controller(tmp_path, unreachable, set(), args, ops="replacement"))
+    assert starts == [] and effects(tmp_path) == 1, failed
+    observed = asyncio.run(second_controller(tmp_path, running, set(), args))
+    assert "effect-done" in observed and effects(tmp_path) == 1
+
+
+def test_a_later_browser_error_does_not_hide_an_earlier_collected_result(tmp_path):
+    host = make_host({CID: NAME})
+    first = asyncio.run(first_controller(tmp_path, host, set(), delay=0, wait_s=10))
+    assert "effect-done" in first
+    # The first result was never retained. The new call first collects that result,
+    # then fails to prepare the inputs for a separate new action.
+    args = {"code": "print('should not run')", "files": ["relative-path"], "wait_s": 10}
+    observed = asyncio.run(second_controller(tmp_path, host, set(), args))
+    assert "expected an absolute path" in observed
+    assert "effect-done" in observed and effects(tmp_path) == 1, observed
+
+
+def test_failed_inventory_is_retried_before_the_adopted_sidecar_can_run(tmp_path, monkeypatch):
+    healthy = make_host({CID: NAME})
+    asyncio.run(first_controller(tmp_path, healthy, set(), delay=0, wait_s=10))
+    used = False
+
+    async def interrupted(argv, timeout_s):
+        nonlocal used
+        if not used and browser_ops._RECORDS in argv:
+            used = True
+            return 1, "", "temporary inventory failure"
+        return await healthy(argv, timeout_s)
+
+    session, ops = controller(tmp_path, interrupted, {"tag-first"}, "tag-second")
+    original = browser.Sidecar.__init__
+
+    def init(self, cid, host, name=None):
+        original(self, cid, host, name)
+        self.runs.ops_dir = ops
+
+    monkeypatch.setattr(browser.Sidecar, "__init__", init)
+    target = tmp_path / "new-effect"
+    args = {"code": f"open({str(target)!r}, 'w').write('new')", "wait_s": 10}
+
+    async def go():
+        failed = await session.use(args, 300)
+        assert "temporary inventory failure" in failed
+        assert used and not target.exists()
+        recovered = await session.use(args, 300)
+        assert "effect-done" not in recovered, recovered
+        assert target.read_text() == "new"
+
+    asyncio.run(go())
