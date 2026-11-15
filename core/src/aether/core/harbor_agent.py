@@ -20,7 +20,7 @@ from pathlib import Path
 import time
 from typing import Any, Mapping
 
-from . import browser, continuation, keep_final, start_archive
+from . import browser, continuation, keep_final, route_modality, start_archive
 from .calls import CallLog
 from .reasoning_wire import WIRES
 from .clone import Clone, compose_clone
@@ -268,6 +268,10 @@ class AetherCoreAgent(BaseAgent):
         try:
             timeout_s = agent_timeout(self._agent_timeout_sec, environ=environ)
             config = build_config(environ=environ)
+            route = route_modality.check(environ, deployment=environ.get(DEPLOYMENT_ENV, ""), images=config.images)
+            if route:
+                logs.mkdir(parents=True, exist_ok=True)
+                (logs / "route_modality.txt").write_text(route)
             provider = build_provider(logs, environ=environ)
             transport = build_review(logs, environ=environ)
             workdir = await discover_workdir(environment)
