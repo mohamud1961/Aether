@@ -1,4 +1,4 @@
-"""M4: the images switch must equal the route's measured modality when a route record is named.
+"""M4: image use must fit the route's measured modality when a route record is named.
 
 Falsifiers: a record for another deployment, a record that disagrees with the switch, and a malformed record each stop
 the run before any model call; the committed Luna record (measured from recorded runs) passes with images on.
@@ -34,9 +34,9 @@ def test_images_on_for_a_route_measured_text_only_is_blocked(tmp_path):
         check(record(tmp_path, images=False), deployment="dep", images=True)
 
 
-def test_images_off_for_a_route_measured_multimodal_is_blocked(tmp_path):
-    with pytest.raises(RouteModalityError, match="accepts image parts.*set it to on"):
-        check(record(tmp_path), deployment="dep", images=False)
+def test_images_off_for_a_route_measured_multimodal_is_allowed(tmp_path):
+    fact = check(record(tmp_path), deployment="dep", images=False)
+    assert "images off" in fact and "accepts image parts" in fact
 
 
 def test_a_record_for_another_deployment_is_blocked(tmp_path):

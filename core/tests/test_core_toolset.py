@@ -1,5 +1,4 @@
-"""Tool-screen arm T0: AETHER_CORE_TOOLSET=minimal offers terminal and finish only, and no model-visible text
-describes a tool that is not offered. Default (full) is unchanged."""
+"""Tool-screen arm T0 removes typed file operations. CLM history recall remains available."""
 
 import pytest
 

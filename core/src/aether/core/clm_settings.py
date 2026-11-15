@@ -10,6 +10,7 @@ from dataclasses import dataclass
 MIRROR_PATH = "/tmp/.aether/ctx/LIVE_CTX.txt"
 HISTORY_PATH = "/tmp/.aether/ctx/HISTORY.txt"
 NOTES_VOICES = ("own", "legacy")
+CHECKPOINT_POLICIES = ("summary", "window")
 
 
 @dataclass
@@ -19,6 +20,8 @@ class ClmSettings:
     nudge_ratios: tuple[float, ...] = (0.5, 0.75)
     max_rollbacks: int = 0
     keep_recent_tokens: int = 8_000
+    # Experimental: cut complete old turns without an auxiliary summary call.
+    checkpoint_policy: str = "summary"
     mirror_path: str = MIRROR_PATH
     history_path: str = HISTORY_PATH
     # Two different numbers (O1, B1 dna ep 2). ``budget_tokens`` governs the editable context the model manages

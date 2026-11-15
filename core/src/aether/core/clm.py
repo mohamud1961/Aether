@@ -36,7 +36,7 @@ import json
 from typing import Any
 
 from . import images
-from .clm_settings import HISTORY_PATH, MIRROR_PATH, NOTES_VOICES, REPLAY_MODES, ClmSettings  # noqa: F401
+from .clm_settings import CHECKPOINT_POLICIES, HISTORY_PATH, MIRROR_PATH, NOTES_VOICES, REPLAY_MODES, ClmSettings  # noqa: F401
 from .clm_mirror import NOTES_HEADER, NOTES_TAG, TURN_RE, ClmMirror, _call_text, render_message  # noqa: F401
 from .facts_workspace import ManagedFactsText, WorkspaceBriefText
 
@@ -89,6 +89,8 @@ class ClmContext(ClmMirror):
             raise ValueError(f"replay_reasoning must be one of {REPLAY_MODES}")
         if self.settings.notes_voice not in NOTES_VOICES:
             raise ValueError(f"notes_voice must be one of {NOTES_VOICES}")
+        if self.settings.checkpoint_policy not in CHECKPOINT_POLICIES:
+            raise ValueError(f"checkpoint_policy must be one of {CHECKPOINT_POLICIES}")
         self._armed = set(self.settings.nudge_ratios)
         if self.settings.attest_original_history and self.raw:
             # No post-hoc declaration that externally supplied history was
@@ -265,6 +267,8 @@ class ClmContext(ClmMirror):
         largest = max(self._recent_outputs or [0]) / self.chars_per_token
         self._turn += 1
         outside = self._replayed_reasoning()[1]  # replayed reasoning: sent, but outside the editable budget
+        replacement = ("removed without a summary" if self.settings.checkpoint_policy == "window"
+                       else "replaced by a summary")
         whole = (
             f" The whole request is about {used + outside} tokens: {outside} of them are your earlier reasoning, "
             "sent back as well but outside this budget."
@@ -279,7 +283,7 @@ class ClmContext(ClmMirror):
             # replayed reasoning that made up most of the request.
             return (
                 f"[context: urgent] {used} of {limit} tokens of your editable context used; about {room} left before "
-                "older turns are replaced by a summary. The run continues after that: this is not a time or turn "
+                f"older turns are {replacement}. The run continues after that: this is not a time or turn "
                 f"limit.{whole} Condense {self.settings.mirror_path} now (keep facts, paths, decisions and open "
                 "problems; drop the rest), and send large outputs to files instead of the conversation."
             )
@@ -296,7 +300,7 @@ class ClmContext(ClmMirror):
             f"It is mirrored at {self.settings.mirror_path}; condense it when convenient by editing that file (keep what "
             "you still need, drop the rest). This shrinks future context; the model/tool turn still uses time and tokens."
             if top < 0.75
-            else f"Condense {self.settings.mirror_path} soon: above the limit older turns are replaced by a summary and the "
+            else f"Condense {self.settings.mirror_path} soon: above the limit older turns are {replacement} and the "
             "run continues."
         )
 

@@ -32,7 +32,7 @@ class CoreConfig:
     control_dir: str = CONTROL_DIR  # where terminals and the REPL keep their files in the sandbox
     make_clone: Callable[[Environment], Awaitable[Any]] | None = None  # tests inject a clone; default docker
     parallel_reads: bool = False  # opt-in: bounded contiguous read_file batches only
-    toolset: str = "full"  # tool-screen arm: "minimal" offers only terminal (+ wait if on) and finish, no file tools
+    toolset: str = "full"  # minimal: terminal, CLM history recall, finish, and optional terminal_wait
     verify: bool = False  # one independent check of the first finish, in a fresh context on a clone (see verify)
     self_check: bool = (
         False  # the self-check paragraph in the system prompt (tools.SELF_CHECK_DOC)
@@ -105,12 +105,31 @@ class CoreConfig:
     workspace_search: bool = False
 
     def __post_init__(self) -> None:
+        if self.toolset not in ("full", "minimal"):
+            raise ValueError("toolset must be full or minimal")
+        if self.toolset == "minimal":
+            conflicts = [
+                name for name, enabled in (
+                    ("repl", self.repl), ("images", self.images), ("browser", self.browser is not None),
+                    ("mcp_servers", bool(self.mcp_servers)), ("state", self.state),
+                    ("workspace_search", self.workspace_search),
+                    ("path_lookup", self.evidence_presentation == "path_lookup"),
+                ) if enabled
+            ]
+            if conflicts:
+                raise ValueError(f"minimal toolset cannot expose: {', '.join(conflicts)}")
         if self.facts_pull and not self.managed_facts:
             raise ValueError("facts_pull requires managed_facts")
         if self.managed_facts and self.env_brief:
             raise ValueError("managed_facts and env_brief are alternative information channels")
         if self.context not in CONTEXT_MODES:
             raise ValueError(f"context must be one of {CONTEXT_MODES}")
+        from .clm_settings import CHECKPOINT_POLICIES
+
+        if self.clm.checkpoint_policy not in CHECKPOINT_POLICIES:
+            raise ValueError(f"checkpoint_policy must be one of {CHECKPOINT_POLICIES}")
+        if self.clm.checkpoint_policy != "summary" and self.context != "clm":
+            raise ValueError("window checkpoint policy requires Core CLM history")
         from .evidence_context import CONTEXT_EVIDENCE_MODES
 
         if self.evidence_presentation not in CONTEXT_EVIDENCE_MODES:
