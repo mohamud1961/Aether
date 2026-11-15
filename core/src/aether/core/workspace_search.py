@@ -22,8 +22,8 @@ TOOL = {"type": "function", "function": {
     "name": "search_workspace",
     "description": "Search file names or file contents under the workspace or a relative subdirectory. mode filename: "
                    "names containing query; text: lines containing query literally; regex: lines matching a Python "
-                   "regular expression. Returns matching lines with path, line and column, totals, and whether the "
-                   "whole scope was scanned. Skips .git, node_modules, virtualenvs and hidden directories.",
+                   "regular expression. Returns path, line, column, totals and coverage; partial means excluded or "
+                   "limited. Skips .git, node_modules, virtualenvs and hidden directories.",
     "parameters": {"type": "object", "properties": {
         "mode": {"type": "string", "enum": ["filename", "text", "regex"]},
         "query": {"type": "string"},
@@ -43,6 +43,7 @@ skip = {'.git', '.hg', '.svn', 'node_modules', '__pycache__', '.venv', 'venv', '
 MAX_ENTRIES, MAX_SHOWN, MAX_FILE, MAX_BYTES, LINE = 50000, 40, 2_000_000, 32_000_000, 240
 pattern = re.compile(query) if mode == 'regex' else None
 matches, examined, bytes_read, omitted, total, files_matched = [], 0, 0, 0, 0, 0
+policy_skipped = {'known_paths': 0, 'hidden_directories': 0, 'control': 0}
 deadline = time.monotonic() + 3
 stopped = False
 
@@ -107,7 +108,12 @@ def walk(fd, prefix, depth, root_mount):
                 is_dir_hint = entry.is_dir(follow_symlinks=False)
             except OSError:
                 is_dir_hint = False
-            if not visible(entry.name, is_dir_hint) or os.path.join(root, path) == exclude:
+            if os.path.join(root, path) == exclude:
+                policy_skipped['control'] += 1
+                continue
+            if not visible(entry.name, is_dir_hint):
+                kind = 'known_paths' if entry.name in skip else 'hidden_directories'
+                policy_skipped[kind] += 1
                 continue
             child = None
             try:
@@ -184,9 +190,12 @@ try:
         with directory(root) as current, directory(target) as check:
             if identity(current) != owner or identity(check) != start:
                 raise ValueError('directory was replaced during search')
-    result = {'status': 'partial' if omitted else 'searched', 'subdir': subdir, 'matches': matches,
+    result = {'status': 'partial' if omitted or any(policy_skipped.values()) else 'searched',
+              'subdir': subdir, 'matches': matches,
               'matches_total': total, 'files_matched': files_matched, 'shown': len(matches),
               'examined': examined, 'skipped_or_limited': omitted, 'bytes_read': bytes_read}
+    if any(policy_skipped.values()):
+        result['policy_skipped'] = policy_skipped
     if stopped:
         result['stopped'] = 'time limit reached while matching; results so far are shown'
 except (ValueError, OSError, StopIteration, AttributeError):

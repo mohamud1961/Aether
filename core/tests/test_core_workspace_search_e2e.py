@@ -79,7 +79,8 @@ def test_search_agrees_with_a_grep_control_and_reports_totals(tmp_path):
     grep = subprocess.run(["grep", "-rn", "--exclude-dir=.git", "--exclude-dir=node_modules", "TOKEN_LIMIT", "."],
                           cwd=work, capture_output=True, text=True).stdout.splitlines()
     text = search(mode="text", query="TOKEN_LIMIT")
-    assert text["status"] == "searched" and text["matches_total"] == len(grep) == 63
+    assert text["status"] == "partial" and text["matches_total"] == len(grep) == 63
+    assert text["policy_skipped"]["known_paths"] == 2
     assert text["files_matched"] == 4 and text["shown"] == 40
     shown = {f"./{m['path']}:{m['line']}:{m['text']}" for m in text["matches"]}
     assert shown <= set(grep)
