@@ -93,3 +93,16 @@ def classify(seq: int | None, token: str | None, done: str | None, delivered: bo
     if token == RUN:
         return ("running", None) if alive else ("lost", None)
     return "unresolved", None  # no token: only before a revoke was attempted
+
+
+async def observe(env, command: str, markers: tuple[str, ...], what: str) -> str:
+    """Run an idempotent read whose every real outcome prints one of ``markers``; a reply without one is no evidence of
+    anything, so it is read again once and then raised, never turned into a negative fact (T2 adoption sweep, 15 Nov:
+    an unanswered record read was taken as "no server" and a second REPL was launched beside the running cell)."""
+    from .env import run
+
+    for _ in range(2):
+        res = await run(env, command)
+        if res.code == 0 and any(m in res.stdout for m in markers):
+            return res.stdout
+    raise RuntimeError(f"{what} could not be observed (no reply carried a result); nothing was changed")

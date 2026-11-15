@@ -14,6 +14,7 @@ import hashlib
 import posixpath
 import shlex
 
+from .tool_validate import unsendable_text
 from .env import Environment, get_bytes, put_bytes, run  # transfer names via env: a stdlib test stubs .env alone
 
 MAX_READ_CHARS = 40_000
@@ -187,6 +188,9 @@ class Files:
         return f"{body.rstrip(chr(10))}\n[{path}: lines {start}-{shown_end} of {total}{more}]"
 
     async def write(self, path: str, content: str) -> str:
+        reason = unsendable_text(content, shell=False)
+        if reason:
+            raise ValueError(f"{path}: not written, nothing ran: {reason}")
         path = self.resolve(path)
         mode = await self._mode(path)
         data = content.encode()

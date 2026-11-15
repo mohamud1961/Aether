@@ -111,8 +111,8 @@ def test_repl_llm_bridge_answers_on_the_host_and_errors_reach_the_cell(tmp_path)
 def test_repl_reports_unavailable_without_python(tmp_path):
     class NoPython(LocalEnv):
         async def exec(self, command, cwd=None, env=None, timeout_sec=None):
-            if "command -v python3" in command:
-                command = "false"
+            # As a container without python3 answers: `command -v` fails (the probe then prints its no-python marker).
+            command = command.replace("command -v python3", "command -v aether-no-such-python")
             return await super().exec(command, cwd, env, timeout_sec)
 
     async def go():

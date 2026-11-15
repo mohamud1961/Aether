@@ -63,3 +63,18 @@ def _check_value(where: str, value: Any, rule: dict[str, Any]) -> None:
                 f"{where}: missing required fields: {', '.join(sorted(missing))}"
             )
         _check_object(where, value, rule)
+
+
+def unsendable_text(text: str, *, shell: bool) -> str:
+    """Why ``text`` cannot reach its receiver byte for byte, or "". Owners check this before any state changes, so a
+    refused call leaves nothing pending (T1, 15 Nov: a lone surrogate left a phantom "still running" terminal command,
+    and a NUL byte was dropped by bash while the command reported exit 0)."""
+    try:
+        text.encode()
+    except UnicodeEncodeError as exc:
+        return (f"it contains text that has no UTF-8 bytes ({text[exc.start:exc.end]!r} at index {exc.start}, an "
+                "unpaired surrogate)")
+    if shell and "\x00" in text:
+        return (f"it contains a NUL byte (index {text.index(chr(0))}), which a shell command cannot carry: bash drops it "
+                "silently. Produce NUL bytes with printf '\\0' or from python instead")
+    return ""

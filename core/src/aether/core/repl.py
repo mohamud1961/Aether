@@ -29,6 +29,7 @@ from .env import (
 )
 from . import operations, repl_adopt
 from .terminal import MAX_WAIT_S
+from .tool_validate import unsendable_text
 
 SERVER_SOURCE = (Path(__file__).with_name("repl_server.py")).read_bytes()
 VIEW_HEAD, VIEW_TAIL = 3_000, 8_000
@@ -83,14 +84,15 @@ class Repl:
     async def start(self) -> str:
         """Launch the server. Returns the Python version, or "" when the container has no usable Python."""
         q = shlex.quote
-        res = await run(
+        out = await operations.observe(
             self._env,
-            "command -v python3 >/dev/null 2>&1 && python3 -c "
+            "{ command -v python3 >/dev/null 2>&1 && python3 -c "
             '\'import sys; print("%d.%d" % sys.version_info[:2]) if sys.version_info >= (3, 6) '
-            "else None'",
+            "else None'; } | grep -E '^[0-9]+[.][0-9]+$' || echo __NOPY__",
+            ("__NOPY__", "."), "whether the container has python3",
         )
-        version = res.stdout.strip()
-        if res.code != 0 or not version:
+        version = "" if "__NOPY__" in out else out.strip()
+        if not version:
             return ""
         if self.track_operations:
             note = await repl_adopt.adopt(self)
@@ -158,6 +160,9 @@ class Repl:
             self.pid = 0
 
     async def run(self, code: str = "", *, wait_s: float = 60.0, interrupt: bool = False) -> str:
+        reason = unsendable_text(code, shell=False)
+        if reason:
+            raise ValueError(f"python: cell not sent, nothing ran: {reason}")
         note, self.adopted_note = self.adopted_note, ""
         try:
             return note + await self._run(code, wait_s=wait_s, interrupt=interrupt)

@@ -27,6 +27,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
+from .tool_validate import unsendable_text
 from . import browser_ops, browser_session_src, images
 from .clone import HostRun, compose_container, host_run, identify
 from .env import Environment
@@ -260,6 +261,9 @@ class BrowserSession:
         self.delivery_tag = lambda: ""
 
     async def use(self, args: dict[str, Any], remaining_s: float) -> str:
+        reason = unsendable_text(str(args.get("code") or ""), shell=False)
+        if reason:
+            raise ValueError(f"browser: code not sent, nothing ran: {reason}")
         self.image = None
         prior_results: list[str] = []
         try:

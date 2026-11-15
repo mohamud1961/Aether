@@ -1,7 +1,7 @@
 """A small real MCP server for tests: SSE, streamable HTTP or stdio, with per-session state.
 
 Tools: ``count`` (per-session counter, proves the session persists), ``shot`` (returns a PNG image item),
-``fail`` (returns isError), ``effect`` (appends one byte to ``path`` at once, then answers after ``delay`` seconds: an
+``fail`` (returns isError), ``record`` (appends ``text`` to ``path`` exactly as parsed, so a duplicate shows twice), ``effect`` (appends one byte to ``path`` at once, then answers after ``delay`` seconds: an
 external effect a test can count; a repeated idempotency key in ``params._meta`` returns without a second effect). Run as ``python mcp_fixture_server.py sse|http PORT`` or ``... stdio``.
 """
 
@@ -21,7 +21,8 @@ TOOLS = [{"name": "count", "description": "Increment this session's counter.", "
          {"name": "shot", "description": "Return an image.", "inputSchema": {"type": "object"}},
          {"name": "fail", "description": "Always fails.", "inputSchema": {"type": "object"}},
          {"name": "effect", "description": "Append one byte to path, answer after delay seconds.",
-          "inputSchema": {"type": "object"}}]
+          "inputSchema": {"type": "object"}},
+         {"name": "record", "description": "Append text to path exactly as received.", "inputSchema": {"type": "object"}}]
 
 
 def handle(message, state):
@@ -58,6 +59,11 @@ def handle(message, state):
             result = {"content": [{"type": "text", "text": "effect-done"}]}
         elif name == "fail":
             result = {"content": [{"type": "text", "text": "it broke"}], "isError": True}
+        elif name == "record":  # T1: the server's own parse of what it received, written byte for byte
+            arguments = message["params"].get("arguments") or {}
+            with open(arguments["path"], "a", encoding="utf-8", errors="surrogatepass", newline="") as handle:
+                handle.write(arguments["text"])
+            result = {"content": [{"type": "text", "text": "recorded"}]}
         else:
             return {"jsonrpc": "2.0", "id": ident, "error": {"code": -32602, "message": f"unknown tool {name}"}}
     else:

@@ -188,8 +188,15 @@ class Mcp:
         q = shlex.quote
         published = await run(self.env, f"mv -f {q(f'{d}/req.tmp.{ident}')} {q(f'{d}/req_{ident}.json')}", timeout_s=10)
         if published.code != 0:
-            del self.ops[ident]  # mv is atomic: a failed rename published nothing
-            return earlier + f"error: MCP server {name}: could not publish request"
+            # A failure status is not proof that nothing was published: the rename can take effect and its reply still
+            # say failure (T2, 15 Nov: retried, the tool ran twice). The start token decides, as for a lost reply.
+            token = await self.revoke_unpublished(ident)
+            if token == operations.REVOKED:
+                return earlier + (f"error: MCP server {name}: could not publish request #{ident}; it is now cancelled, so "
+                                  "it was never sent and cannot run later. Send it again if it is still needed.")
+            if token is None:
+                return earlier + (f"[MCP request #{ident} to {name}: publishing it reported failure and whether the "
+                                  "client took it is not known. It is not resent; it is resolved at the next MCP use]")
         self.ops[ident]["published"] = True
         return earlier + await self._waited(earlier, d, ident, timeout)
 

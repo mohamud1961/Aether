@@ -21,7 +21,7 @@ import re
 import shlex
 
 from . import operations
-from .env import alive_test, process_identities, run
+from .env import ProcessCleanupError, alive_test, process_identities, run
 
 RECORD = "server.rec"
 
@@ -35,16 +35,23 @@ def record_script(base: str, pid: int, identity: dict, python: str) -> str:
 async def adopt(repl) -> str | None:
     """Adopt the recorded server if it is the same live process. Returns a note for the model, or None."""
     q, base = shlex.quote, repl.base
-    res = await run(repl._env, f"cat {q(base + '/' + RECORD)} 2>/dev/null; echo; echo __SEP__; "
-                               f"ls {q(base)}/in 2>/dev/null")
-    raw, _, listing = res.stdout.partition("__SEP__\n")
+    out = await operations.observe(repl._env, f"cat {q(base + '/' + RECORD)} 2>/dev/null; echo; echo __SEP__; "
+                                              f"ls {q(base)}/in 2>/dev/null; true", ("__SEP__",), "the python REPL's records")
+    raw, _, listing = out.partition("__SEP__\n")
     try:
         rec = json.loads(raw.strip())
         pid, identity, python = int(rec["pid"]), dict(rec["identity"]), str(rec["python"])
     except (ValueError, KeyError, TypeError):
         return None
-    alive = await run(repl._env, f"{alive_test(pid)} && echo yes || echo no")
-    if alive.stdout.strip() != "yes" or not identity or await process_identities(repl._env, [pid]) != identity:
+    alive = await operations.observe(repl._env, f"{alive_test(pid)} && echo __YES__ || echo __NO__",
+                                     ("__YES__", "__NO__"), f"whether python REPL server {pid} is alive")
+    if "__YES__" not in alive or not identity:
+        return None
+    try:
+        now = await process_identities(repl._env, [pid])
+    except ProcessCleanupError:  # an unanswered identity read, as above: once more, then raised
+        now = await process_identities(repl._env, [pid])
+    if now != identity:
         return None
     cells = [int(m.group(1)) for m in re.finditer(r"^(\d+)\.py$", listing, re.M)]
     staged = [int(m.group(1)) for m in re.finditer(r"^(\d+)\.tmp$", listing, re.M)]

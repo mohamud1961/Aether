@@ -87,9 +87,12 @@ async def adopt(terminals, name: str) -> tuple[Session, dict] | None:
     pending_text, size, claims = parts[3:]
     if len(mode) != 2 or mode[0] not in ("pty", "nopty") or mode[1] not in ("bash", "sh"):
         raise RuntimeError(f"terminal {name}: no launch mode record in {root}; ownership is unverified")
-    now = await run(terminals._env, f"{alive_test(pid)} && {{ {_BIRTH.format(pid=pid)}; }} || echo __DEAD__")
-    alive = now.code == 0 and "__DEAD__" not in now.stdout
-    if alive and now.stdout.strip() != birth:
+    # Dead needs its marker, alive a birth time: no reply is neither (T2 adoption sweep, 15 Nov: read as dead, the
+    # live shell was "restarted" and its running command's result was never shown).
+    now = await operations.observe(terminals._env, f"{alive_test(pid)} && {{ echo __BIRTH__; {_BIRTH.format(pid=pid)}; }} || "
+                                   "echo __DEAD__", ("__DEAD__", "__BIRTH__"), f"whether terminal {name}'s shell is alive")
+    alive = "__BIRTH__" in now
+    if alive and now.partition("__BIRTH__")[2].strip() != birth:
         raise RuntimeError(f"terminal {name}: process {pid} is not the shell recorded in {root}; not adopted")
     latest_claim = max((int(line[6:]) for line in claims.splitlines() if line.startswith("claim_")
                         and line[6:].isascii() and line[6:].isdigit()), default=0)

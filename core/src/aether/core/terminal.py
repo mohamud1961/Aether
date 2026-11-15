@@ -21,6 +21,7 @@ from .terminal_procs import describe_processes
 from .terminal_session import (  # noqa: F401 (some names re-exported)
     MAX_TERMINALS, Session, TerminalGone, TerminalLifecycle, _ASKS, _text, clean,
 )
+from .tool_validate import unsendable_text
 from .transfer import INLINE_BYTES, put_bytes
 
 from .terminal_io import TerminalIO, _TerminalSequenceClaimed
@@ -106,6 +107,8 @@ class Terminals(TerminalIO, TerminalLifecycle):
     ) -> str:
         if not _NAME.fullmatch(name):
             raise ValueError("terminal name must be 1-32 chars of letters, digits, _ or -")
+        if reason := unsendable_text(input, shell=mode == "command"):
+            raise ValueError(f"terminal {name}: input not sent, nothing ran: {reason}")
         async with self._name_locks.setdefault(name, asyncio.Lock()):
             return await self._use(name=name, input=input, mode=mode, wait_s=wait_s, interrupt=interrupt)
 
@@ -350,6 +353,17 @@ class Terminals(TerminalIO, TerminalLifecycle):
             # the shell actually resumed execution.
             await self._write(session, keys)
 
+    @staticmethod
+    def _unobserved(session: Session, seq: int | None, exc: Exception, mark: re.Match | None) -> None:
+        """A poll or read of pending command ``seq`` failed: the next call shows it before any new input (T2, 15 Nov:
+        told only that a read failed, a model re-sent the command and it ran twice)."""
+        if seq is None:
+            return
+        session.unseen = True
+        state = f"finished (exit {mark.group(2)})" if mark is not None else "was still running when last observed"
+        raise RuntimeError(f"{exc}. Command #{seq} {state}; its outcome was not shown and comes with the next call to "
+                           f"terminal {session.name}, before any new input is sent.") from None
+
     async def _collect(
         self,
         session: Session,
@@ -376,7 +390,12 @@ class Terminals(TerminalIO, TerminalLifecycle):
                 size, mark, alive = first
                 first = None
             else:
-                size, mark, alive = await self._poll(session, seq)
+                try:
+                    size, mark, alive = await self._poll(session, seq)
+                except RuntimeError as exc:
+                    if not isinstance(exc, TerminalGone):
+                        self._unobserved(session, seq, exc, None)
+                    raise
             now = time.monotonic()
             if size != session.last_size:
                 session.last_size, session.grew_at = size, now
@@ -399,7 +418,12 @@ class Terminals(TerminalIO, TerminalLifecycle):
                 break
             await asyncio.sleep(delay)
             delay = min(1.0, delay * 1.5)
-        text = clean(await self._read(session, session.cursor, size, int(mark.group(1)) if mark is not None else 0))
+        try:
+            text = clean(await self._read(session, session.cursor, size, int(mark.group(1)) if mark is not None else 0))
+        except RuntimeError as exc:
+            if not isinstance(exc, TerminalGone):
+                self._unobserved(session, seq, exc, mark)
+            raise
         session.unseen = False
         revoked = mark is None and seq is not None and session.revoked == seq
         if revoked:

@@ -5,7 +5,13 @@ runs under a bash DEBUG trap that counts its simple commands, so a sweep learns 
 In fault mode the ``target``-th exec runs under a trap that exits before its ``cut``-th simple command (``cut`` past
 the last command lets it finish), and its reply is then lost (ConnectionError). Every later exec runs normally.
 So the sweep covers every point at which a controller can lose an operation's exec, whatever the protocol's shape.
+
+With ``misreport`` the target exec instead runs to completion and its reply arrives altered: a failure status (1)
+and no output, as when a transport or deadline wrapper reports failure after the command took effect. A protocol that
+reads a failure status as proof that nothing happened fails this mode (the audit's "ack lost after rename" case).
 """
+
+from types import SimpleNamespace
 
 import shlex
 
@@ -19,9 +25,9 @@ def _under_trap(command: str, counter: str, cut: int | None) -> str:
 
 
 class CutExecs(LocalEnv):
-    def __init__(self, root, target: int | None = None, cut: int | None = None):
+    def __init__(self, root, target: int | None = None, cut: int | None = None, misreport: bool = False):
         super().__init__(root)
-        self.target, self.cut = target, cut
+        self.target, self.cut, self.misreport = target, cut, misreport
         self.armed, self.fired, self.index = False, False, 0
         self.counts: list[int] = []
 
@@ -38,6 +44,9 @@ class CutExecs(LocalEnv):
         if i != self.target:
             return await super().exec(command, **kwargs)
         self.fired = True
+        if self.misreport:
+            await super().exec(command, **kwargs)
+            return SimpleNamespace(return_code=1, stdout="", stderr="")
         await super().exec(_under_trap(command, counter, self.cut), **kwargs)
         raise ConnectionError(f"the controller lost exec {i}")
 
@@ -45,3 +54,8 @@ class CutExecs(LocalEnv):
 def kill_points(counts: list[int]) -> list[tuple[int, int]]:
     """(exec, cut) for every simple command of every exec, plus each exec's lost reply."""
     return [(e, k) for e, n in enumerate(counts) for k in range(1, n + 2)]
+
+
+def misreport_points(counts: list[int]) -> list[tuple[int, None]]:
+    """(exec, None) for every exec: run it fully, then report failure with no output."""
+    return [(e, None) for e in range(len(counts))]

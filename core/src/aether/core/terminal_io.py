@@ -120,7 +120,9 @@ class TerminalIO:
     def _probe_result(
         self, session: Session, seq: int | None, out: str
     ) -> tuple[int, re.Match | None, bool]:
-        rest, _, size_text = out.rpartition("__SIZE__\n")
+        rest, marker, size_text = out.rpartition("__SIZE__\n")
+        if not marker:  # no reply at all is not evidence of anything (T2 adoption sweep, 15 Nov)
+            raise RuntimeError(f"terminal {session.name} could not be observed just now; nothing was changed")
         if (
             not size_text.strip().isdigit()
         ):  # the log is gone (the control directory was deleted)

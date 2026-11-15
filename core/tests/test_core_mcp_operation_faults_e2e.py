@@ -45,7 +45,7 @@ async def scenario(tmp_path, target=None, cut=None, delay=1.0, timeout_s=60.0, c
     mcp = client(env, str(tmp_path / "control"), [spec()])
     shown: list[str] = []
     try:
-        assert (await mcp.use({"server": "fx", "action": "list"}, 120)).startswith("4 tools:")
+        assert (await mcp.use({"server": "fx", "action": "list"}, 120)).startswith("5 tools:")
         env.armed = True
         try:
             shown.append(await mcp.use(intent, 120))

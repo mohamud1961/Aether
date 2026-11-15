@@ -53,7 +53,7 @@ def intent(tmp_path, delay, timeout_s=30):
 async def died_before_taking(tmp_path):
     mcp = Mcp(CutExecs(tmp_path, None, None), str(tmp_path / "control"), [spec()])
     try:
-        assert (await mcp.use({"server": "fx", "action": "list"}, 120)).startswith("4 tools:")
+        assert (await mcp.use({"server": "fx", "action": "list"}, 120)).startswith("5 tools:")
         kill_client(mcp)
         await asyncio.sleep(0.3)
         began = time.monotonic()
@@ -66,7 +66,7 @@ async def died_before_taking(tmp_path):
 async def died_after_sending(tmp_path, idempotency):
     mcp = Mcp(CutExecs(tmp_path, None, None), str(tmp_path / "control"), [spec()], idempotency=idempotency)
     try:
-        assert (await mcp.use({"server": "fx", "action": "list"}, 120)).startswith("4 tools:")
+        assert (await mcp.use({"server": "fx", "action": "list"}, 120)).startswith("5 tools:")
         call = asyncio.ensure_future(mcp.use(intent(tmp_path, 6), 120))
         await effects_after(tmp_path / "effects")
         kill_client(mcp)
