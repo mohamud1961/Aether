@@ -91,3 +91,46 @@ def test_first_write_only_and_scope(tmp_path, outside_root):
     assert "kept at" in first and second == "" and "did not exist" in absent and inside == "" and scratch == ""
     kept = (tmp_path / "ctl" / "witness").joinpath(*str(outside_root / "x.conf").strip("/").split("/"))
     assert kept.read_text() == "a"
+
+
+def test_incomplete_scope_copy_is_not_published_as_an_original(tmp_path, outside_root):
+    import os
+
+    if os.geteuid() == 0:
+        pytest.skip("the unreadable fixture needs an unprivileged Linux user")
+    (outside_root / "readable.conf").write_text("sample\n")
+    unreadable = outside_root / "unreadable.conf"
+    unreadable.write_text("fixture data\n")
+    unreadable.chmod(0)
+    work, control = tmp_path / "work", tmp_path / "ctl"
+    work.mkdir()
+    try:
+        note, receipt = asyncio.run(outside_witness.take(
+            LocalEnv(work), str(work), str(control), roots=(str(outside_root),),
+        ))
+        assert not note and not receipt["roots"][0]["copied"], receipt
+        assert not Path(str(control / "outside") + str(outside_root)).exists()
+    finally:
+        unreadable.chmod(0o600)
+
+
+def test_first_write_witness_survives_a_new_controller(tmp_path, outside_root):
+    work, control = tmp_path / "work", tmp_path / "ctl"
+    work.mkdir()
+    target, created = outside_root / "original.conf", outside_root / "new.conf"
+    target.write_text("start\n")
+
+    async def go():
+        before = outside_witness.Witness(LocalEnv(work), str(work), str(control), roots=())
+        await before.before_write(str(target))
+        await before.before_write(str(created))
+        target.write_text("after edit\n")
+        created.write_text("now present\n")
+        after = outside_witness.Witness(LocalEnv(work), str(work), str(control), roots=())
+        kept = await after.before_write(str(target))
+        absent = await after.before_write(str(created))
+        return kept, absent
+
+    kept, absent = asyncio.run(go())
+    assert Path(kept.removesuffix("]").rsplit(" at ", 1)[-1]).read_text() == "start\n"
+    assert "did not exist" in absent

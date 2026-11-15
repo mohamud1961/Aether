@@ -3,7 +3,7 @@
 The start copy keeps the working directory as it was before the first action. Changes outside it (a service's
 config under /etc, a file the model writes by absolute path) had no record of their original. This adds two:
 
-- at the start, a copy of each configured root (default /etc) under the control directory, bounded in size;
+- at the start, a bounded copy of each explicitly configured root under the control directory;
 - at the first write by Core's own file tools to a path outside the workdir and those roots, a copy of that file's
   original (or the fact that it did not exist).
 
@@ -14,7 +14,7 @@ Research gate (a21_outside_writes.py, 15 Nov, 793 graded Core traces, 81 tasks):
 workspace appear in 8 tasks, almost all the task's own required system config (sshd_config, mailman.cfg, nginx,
 /git, /var/www), and do not separate passing from failing runs of the same task. No trace showed a lost outside
 original. The model writes through the shell about 8 to 1 (F7), which the per-file capture cannot see before the
-write; the root copy covers /etc for that path. Built small and off, as the plan requires; not promoted.
+write; an operator can name a specific root for that path. Built small and off, as the plan requires; not promoted.
 """
 
 from __future__ import annotations
@@ -25,7 +25,6 @@ import shlex
 from .env import Environment, run
 
 OUTSIDE_WITNESS_ENV = "AETHER_CORE_OUTSIDE_WITNESS"
-ROOTS = ("/etc",)
 ROOT_LIMIT_BYTES = 64 * 1024 * 1024
 FILE_LIMIT_BYTES = 16 * 1024 * 1024
 SCRATCH = ("/tmp", "/dev", "/proc", "/sys", "/run", "/var/tmp")
@@ -38,7 +37,7 @@ def _under(path: str, root: str) -> bool:
     return path == root or path.startswith(root.rstrip("/") + "/")
 
 
-async def take(env: Environment, workdir: str, control_dir: str, roots: tuple[str, ...] = ROOTS) -> tuple[str, dict]:
+async def take(env: Environment, workdir: str, control_dir: str, roots: tuple[str, ...] = ()) -> tuple[str, dict]:
     """Copy each root under ``control_dir/outside``; the note for the task message ('' when nothing was copied)."""
     base, q = posixpath.join(control_dir, "outside"), shlex.quote
     copied, rows = [], []
@@ -47,19 +46,28 @@ async def take(env: Environment, workdir: str, control_dir: str, roots: tuple[st
             rows.append({"root": root, "copied": False, "reason": "overlaps the workdir"})
             continue
         dest = base + root
-        script = (f"[ -d {q(root)} ] || {{ echo missing; exit 3; }}; k=$(du -sk {q(root)} 2>/dev/null | cut -f1); "
-                  f"[ -n \"$k\" ] || {{ echo unmeasured; exit 3; }}; [ $((k*1024)) -le {ROOT_LIMIT_BYTES} ] || "
-                  f"{{ echo too_large $k; exit 4; }}; mkdir -p {q(posixpath.dirname(dest))} && "
-                  f"cp -a {q(root)} {q(dest)} 2>/dev/null; [ -d {q(dest)} ] && echo ok $k")
+        parent = posixpath.dirname(dest)
+        script = (
+            f"if [ -d {q(dest)} ] && [ ! -L {q(dest)} ]; then echo retained; exit 0; fi; "
+            f"[ -d {q(root)} ] && [ ! -L {q(root)} ] || {{ echo missing_or_linked; exit 3; }}; "
+            f"du=$(du -sk -- {q(root)} 2>/dev/null) || {{ echo unmeasured; exit 3; }}; "
+            "k=$(printf '%s' \"$du\" | cut -f1); "
+            f"[ $((k*1024)) -le {ROOT_LIMIT_BYTES} ] || {{ echo too_large $k; exit 4; }}; "
+            f"mkdir -p -- {q(parent)} && stage=$(mktemp -d {q(parent + '/.copy.XXXXXXXX')}) || exit 5; "
+            "trap 'rm -rf -- \"$stage\"' EXIT; "
+            f"cp -a -- {q(root)} \"$stage/original\" 2>/dev/null && "
+            f"mv -nT -- \"$stage/original\" {q(dest)} && echo ok $k"
+        )
         try:
             result = await run(env, script, timeout_s=120)
         except Exception as exc:  # an instrument: no copy, no note
             rows.append({"root": root, "copied": False, "reason": f"{type(exc).__name__}: {exc}"[:200]})
             continue
         words = result.stdout.split()
-        if words[:1] == ["ok"]:
+        if result.code == 0 and words and words[0] in ("ok", "retained"):
             copied.append(root)
-            rows.append({"root": root, "copied": True, "kib": int(words[1])})
+            rows.append({"root": root, "copied": True, "retained": words[0] == "retained",
+                         **({"kib": int(words[1])} if len(words) == 2 else {})})
         else:
             rows.append({"root": root, "copied": False, "reason": result.stdout.strip()[:200], "exit": result.code})
     if not copied:
@@ -71,7 +79,7 @@ async def take(env: Environment, workdir: str, control_dir: str, roots: tuple[st
 class Witness:
     """First-write capture for Core's file tools outside the workdir, the copied roots and scratch paths."""
 
-    def __init__(self, env: Environment, workdir: str, control_dir: str, roots: tuple[str, ...] = ROOTS) -> None:
+    def __init__(self, env: Environment, workdir: str, control_dir: str, roots: tuple[str, ...] = ()) -> None:
         self.env, self.workdir, self.control_dir, self.roots = env, workdir.rstrip("/") or "/", control_dir, roots
         self.base = posixpath.join(control_dir, "witness")
         self.seen: dict[str, str] = {}  # path -> kept | absent | skipped | unreadable
@@ -89,10 +97,20 @@ class Witness:
             return ""
         path, q = posixpath.normpath(path), shlex.quote
         dest = self.base + path
-        script = (f"if [ -f {q(path)} ] && [ ! -L {q(path)} ]; then "
-                  f"[ $(wc -c < {q(path)}) -le {FILE_LIMIT_BYTES} ] || {{ echo skipped; exit 0; }}; "
-                  f"mkdir -p {q(posixpath.dirname(dest))} && cp -p {q(path)} {q(dest)} && echo kept; "
-                  f"elif [ -e {q(path)} ] || [ -L {q(path)} ]; then echo skipped; else echo absent; fi")
+        absent = posixpath.join(self.control_dir, "witness-absent") + path
+        parent = posixpath.dirname(dest)
+        script = (
+            f"if [ -f {q(dest)} ] && [ ! -L {q(dest)} ]; then echo kept; "
+            f"elif [ -f {q(absent)} ] && [ ! -L {q(absent)} ]; then echo absent; "
+            f"elif [ -f {q(path)} ] && [ ! -L {q(path)} ]; then "
+            f"size=$(stat -c %s -- {q(path)}) && [ \"$size\" -le {FILE_LIMIT_BYTES} ] || {{ echo skipped; exit 0; }}; "
+            f"mkdir -p -- {q(parent)} && stage=$(mktemp -d {q(parent + '/.copy.XXXXXXXX')}) || exit 5; "
+            "trap 'rm -rf -- \"$stage\"' EXIT; "
+            f"cp -p --no-dereference -- {q(path)} \"$stage/original\" && [ ! -L \"$stage/original\" ] && "
+            f"mv -nT -- \"$stage/original\" {q(dest)} && echo kept; "
+            f"elif [ -e {q(path)} ] || [ -L {q(path)} ]; then echo skipped; "
+            f"else mkdir -p -- {q(posixpath.dirname(absent))} && touch -- {q(absent)} && echo absent; fi"
+        )
         try:
             result = await run(self.env, script, timeout_s=30)
             state = result.stdout.strip() if result.code == 0 else "unreadable"
