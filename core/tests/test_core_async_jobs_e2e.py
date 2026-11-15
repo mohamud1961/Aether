@@ -7,7 +7,6 @@ satisfied; a timeout names what is still running; other terminals keep running.
 import asyncio
 import json
 import os
-import time
 
 import pytest
 
@@ -30,14 +29,18 @@ def test_any_returns_the_first_finisher_and_all_collects_the_rest_once(tmp_path)
     async def go():
         t = controller(tmp_path)
         try:
-            assert "still running" in await t.use(name="slow", input="sleep 1.5; echo slow-out", wait_s=0.1)
-            assert "still running" in await t.use(name="fast", input="sleep 0.3; echo fast-out; (exit 2)",
-                                                  wait_s=0.1)
-            started = time.monotonic()
-            first = await t.wait_events(["slow", "fast"], mode="any", wait_s=10)
-            assert time.monotonic() - started < 1.2  # did not wait for the slow job
+            assert "still running" in await t.use(
+                name="slow", input="while [ ! -e release-slow ]; do sleep 0.05; done; echo slow-out", wait_s=0.1
+            )
+            assert "still running" in await t.use(
+                name="fast", input="while [ ! -e release-fast ]; do sleep 0.05; done; echo fast-out; (exit 2)",
+                wait_s=0.1,
+            )
+            (tmp_path / "release-fast").touch()
+            first = await asyncio.wait_for(t.wait_events(["slow", "fast"], mode="any", wait_s=10), timeout=5)
             assert [(c["name"], c["exit"]) for c in first["completed"]] == [("fast", 2)]
             assert "fast-out" in first["completed"][0]["observation"] and first["pending"] == ["slow"]
+            (tmp_path / "release-slow").touch()
             rest = await t.wait_events(["slow", "fast"], mode="all", wait_s=10)
             assert [(c["name"], c["exit"]) for c in rest["completed"]] == [("slow", 0)]
             assert "slow-out" in rest["completed"][0]["observation"]
@@ -54,9 +57,11 @@ def test_timeout_names_the_running_command_and_leaves_it_running(tmp_path):
     async def go():
         t = controller(tmp_path)
         try:
-            await t.use(name="job", input="sleep 1; printf done > out", wait_s=0.1)
+            await t.use(name="job", input="while [ ! -e release ]; do sleep 0.05; done; printf done > out",
+                        wait_s=0.1)
             timed = await t.wait_events(["job"], mode="all", wait_s=0.3)
             assert timed["pending"] == ["job"] and not timed["completed"] and not timed["unknown"]
+            (tmp_path / "release").touch()
             done = await t.wait_events(["job"], mode="all", wait_s=10)
             assert [(c["name"], c["exit"]) for c in done["completed"]] == [("job", 0)]
             assert (tmp_path / "out").read_text() == "done"
