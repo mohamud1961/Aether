@@ -46,6 +46,25 @@ from .mcp_client_src import SOURCE
 MAX_CHARS = 30_000
 MCP_IDEMPOTENCY_ENV = "AETHER_CORE_MCP_IDEMPOTENCY"
 LIVENESS_EVERY_S = 1.0
+_WAIT_SUFFIX = "\n__AETHER_MCP_WAIT_COMPLETE__"
+_WAIT_SOURCE = r"""
+import sys
+import time
+
+path, duration = sys.argv[1], float(sys.argv[2])
+end = time.monotonic() + duration
+while True:
+    try:
+        with open(path, "rb") as file:
+            data = file.read()
+    except OSError:
+        data = b""
+    left = end - time.monotonic()
+    if data.strip() or left <= 0:
+        sys.stdout.buffer.write(data + b"\n__AETHER_MCP_WAIT_COMPLETE__")
+        break
+    time.sleep(min(0.01, left))
+"""
 
 
 class _ClientLost(Exception):
@@ -89,9 +108,10 @@ def normalize(servers: Any) -> list[dict[str, Any]]:
 
 class Mcp:
     def __init__(self, env, control_dir: str, servers: list[dict[str, Any]], adopt: bool = False,
-                 idempotency: bool = False):
+                 idempotency: bool = False, fast_wait: bool = False):
         self.env, self.root = env, f"{control_dir}/mcp"
         self.idempotency = idempotency
+        self.fast_wait = fast_wait
         # Identical calls whose effect ended unknown: key -> (idempotency key, request number), reused once.
         self.unknown_keys: dict[str, tuple[str, int]] = {}
         # Adoption across controllers (mcp_adopt) and delivery authority (operations.seen), as for terminals.
@@ -256,15 +276,48 @@ class Mcp:
                 "Its result:]\n") if attached else ""
         checked = started
         while time.monotonic() - started < timeout:
-            got = await run(self.env, f"cat {q(f'{d}/resp_{ident}.json')} 2>/dev/null; true", timeout_s=30)
-            if got.stdout.strip():
-                return head + await self._finish(d, ident, json.loads(got.stdout), time.monotonic() - started)
+            path = f"{d}/resp_{ident}.json"
+            waited, text = False, ""
+            if self.fast_wait:
+                remaining = max(0.0, timeout - (time.monotonic() - started))
+                until_liveness = max(0.01, LIVENESS_EVERY_S - (time.monotonic() - checked))
+                window = min(0.8, remaining, until_liveness)
+                watchdog = max(0.001, min(1.0, remaining))
+                call = f'"$p" -c {q(_WAIT_SOURCE)} {q(path)} {window!r}'
+                command = ("p=$(command -v python3 2>/dev/null || command -v python 2>/dev/null) || exit 127; "
+                           "command -v timeout >/dev/null 2>&1 || exit 127; "
+                           f"timeout -k 0.2 {watchdog:.3f} {call}")
+                probe_started = time.monotonic()
+                try:
+                    probe = await run(self.env, command, timeout_s=3)
+                except (OSError, RuntimeError, TimeoutError):
+                    probe = None
+                if probe is not None and probe.code == 0 and probe.stdout.endswith(_WAIT_SUFFIX):
+                    text, waited = probe.stdout[:-len(_WAIT_SUFFIX)], True
+                    if not text.strip() and time.monotonic() - probe_started + 0.01 < window:
+                        waited = False  # a completed empty observation must actually have waited
+                    if text.strip():
+                        try:
+                            response = json.loads(text)
+                            if not isinstance(response, dict) or response.get("id") != ident:
+                                raise ValueError("observer response identity differs")
+                        except (ValueError, TypeError):
+                            text, waited = "", False
+                if not waited:
+                    op["fast_wait_fallbacks"] = op.get("fast_wait_fallbacks", 0) + 1
+            if not waited:
+                got = await run(self.env, f"cat {q(path)} 2>/dev/null; true", timeout_s=30)
+                text = got.stdout
+            if text.strip():
+                return head + await self._finish(d, ident, json.loads(text), time.monotonic() - started)
             if time.monotonic() - checked >= LIVENESS_EVERY_S:
                 checked = time.monotonic()
                 if await mcp_adopt.client_alive(self.env, d) is False:
                     text, resend = await self._client_lost(op["server"], d, ident)
                     raise _ClientLost(head + text, resend)
-            await asyncio.sleep(0.2)
+            if not waited:
+                await asyncio.sleep(min(0.2, max(0.0, timeout - (time.monotonic() - started)))
+                                    if self.fast_wait else 0.2)
         return (f"[MCP request #{ident} to {op['server']} ({op['tool'] or op['action']}) has no result after "
                 f"{timeout:g} s. It was published to the client, so its effect is unknown until its answer arrives. "
                 "Core shows that answer at the next mcp use; an identical request attaches to it instead of being "
@@ -317,8 +370,11 @@ class Mcp:
             if recorded.code != 0:
                 raise RuntimeError(f"MCP request #{ident}: result delivery could not be recorded")
         del self.ops[ident]
-        self.calls.append({"server": op["server"], "action": op["action"], "tool": op["tool"],
-                           "error": "error" in reply, "s": round(seconds, 2)})
+        record = {"server": op["server"], "action": op["action"], "tool": op["tool"],
+                  "error": "error" in reply, "s": round(seconds, 2)}
+        if self.fast_wait:
+            record.update({"fast_wait": True, "wait_fallbacks": op.get("fast_wait_fallbacks", 0)})
+        self.calls.append(record)
         return rendered
 
     async def _render(self, d: str, ident: int, action: str, reply: dict) -> str:

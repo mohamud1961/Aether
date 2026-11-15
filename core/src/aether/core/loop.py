@@ -158,7 +158,7 @@ async def run_agent(
                 from . import mcp
 
                 s.mcp = mcp.Mcp(s.env, config.control_dir, list(config.mcp_servers), adopt=config.terminal_events,
-                                idempotency=config.mcp_idempotency)
+                                idempotency=config.mcp_idempotency, fast_wait=config.fast_mcp_wait)
                 if config.terminal_events:
                     s.mcp.conversation, s.mcp.delivery_tag = s.terminals.conversation, s.delivery_tag
                 s.tools = [*s.tools, mcp.tool(list(config.mcp_servers))]
@@ -249,6 +249,7 @@ async def run_agent(
                 reviews=config.reviews.__dict__,
                 clm=config.clm.__dict__ if s.clm else None,
                 **({"fast_process_scan": True} if config.fast_process_scan else {}),
+                **({"fast_mcp_wait": True} if config.fast_mcp_wait else {}),
             )
             await _loop(s)
     except TimeoutError:

@@ -104,6 +104,7 @@ class CoreConfig:
     workspace_brief: bool = False
     workspace_search: bool = False
     fast_process_scan: bool = False  # opt-in: single-process pending-terminal observer with shell fallback
+    fast_mcp_wait: bool = False  # opt-in: bounded sandbox-side response observation
 
     def __post_init__(self) -> None:
         if self.toolset not in ("full", "minimal"):
