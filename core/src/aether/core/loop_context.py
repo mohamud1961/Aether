@@ -24,13 +24,25 @@ async def _keep_history(s: _Session) -> str:
 
 async def _rehydrate(s: _Session, cause: str) -> None:
     """E18 K2: after the context is shortened, the files this run changed are shown again as they are now."""
-    if not s.config.rehydrate or s.clm is None:
+    clm = s.clm
+    if not s.config.rehydrate or clm is None:
         return
     from . import rehydrate
 
+    if s.files.written and clm.held() >= clm.settings.limit:
+        s.trace("rehydrate", cause=cause, shown=0, omitted="context_budget")
+        return
     note, row = await rehydrate.note(s.env, list(s.files.written))
     if note:
-        _attach(s.clm.editable, note)
+        tail = clm.editable[-1] if clm.editable and clm.editable[-1].get("role") == "tool" else None
+        original = tail["content"] if tail is not None else None
+        _attach(clm.editable, note)
+        if clm.over_limit():
+            if tail is not None:
+                tail["content"] = original
+            else:
+                clm.editable.pop()
+            row.update(shown=0, omitted="context_budget")
     s.trace("rehydrate", cause=cause, **row)
 
 
@@ -99,8 +111,8 @@ async def _fit_context(s: _Session) -> bool:
             note = await s.record.after_checkpoint()
             if note:
                 _attach(clm.editable, note)
-        await _rehydrate(s, "checkpoint")
         _restore_facts(s)
+        await _rehydrate(s, "checkpoint")
         if clm.over_limit():
             s.result.status, s.result.error = (
                 "context_error",

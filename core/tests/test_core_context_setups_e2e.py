@@ -171,6 +171,36 @@ def test_rehydration_after_cores_own_checkpoint(tmp_path, on):
         assert any(r["event"] == "rehydrate" and r["cause"] == "checkpoint" and r["shown"] == 1 for r in rows)
 
 
+@pytest.mark.parametrize("on", [False, True])
+def test_optional_rehydration_cannot_exhaust_the_checkpoint_budget(tmp_path, on):
+    from dataclasses import replace
+    from tests.core_fakes import call
+    from tests.test_core_v2 import _clm_config, _run, _text
+
+    paths = [f"draft-{i}.txt" for i in range(5)]
+    script = [call("write_file", {"path": path, "content": "draft\n"}, path) for path in paths]
+    script.append(call("terminal", {
+        "input": f"for file in {' '.join(paths)}; do head -c 6500 /dev/zero | tr '\\000' z > \"$file\"; done",
+    }, "fill"))
+    script += [call("terminal", {"input": f"echo {i}" + "q" * 3000}, f"log{i}") for i in range(6)]
+    script.extend([
+        call("terminal", {"input": f"wc -c < {paths[-1]} > result.txt"}, "report"),
+        call("finish", {"summary": "done"}, "finish"),
+    ])
+    config = replace(
+        _clm_config(tmp_path, budget_tokens=9000, reserve_tokens=500, keep_recent_tokens=2500),
+        rehydrate=on,
+    )
+    texts = [_text("## Goal\nRead the actual file size.") for _ in range(4)]
+    result, rows, _ = _run(tmp_path, script, config=config, text_script=texts)
+    assert any(r["event"] == "context_checkpoint" and r["ok"] for r in rows)
+    assert result.status == "finished", result.error
+    assert (tmp_path / "work" / "result.txt").read_text().strip() == "6500"
+    assert result.calls == len(script)
+    if on:
+        assert any(r["event"] == "rehydrate" and r.get("omitted") == "context_budget" for r in rows)
+
+
 
 def test_a_mirror_edit_cannot_drop_the_provider_compaction_anchor(tmp_path):
     from json import loads
