@@ -6,9 +6,8 @@ that measurement::
 
     {"deployment": "gpt-6-luna", "images": true, "evidence": "..."}
 
-When it is set, the run starts only if the record is for this run's deployment and ``AETHER_CORE_IMAGES`` equals
-the measured value. Anything else stops the run before any model call, so a mismatch surfaces as a configuration
-failure instead of a mid-run provider rejection read as a model failure. Unset, nothing is checked (stock).
+When it is set, the record must match the deployment. Image tools require a route measured to accept images.
+An image-capable route also supports a text-only tool profile. Unset, nothing is checked (stock).
 """
 
 from __future__ import annotations
@@ -40,9 +39,11 @@ def check(environ: Mapping[str, str], *, deployment: str, images: bool) -> str:
         raise RouteModalityError(
             f"{ROUTE_MODALITY_ENV}={path} was measured for deployment {record['deployment']!r}, "
             f"but this run uses {deployment!r}; measure this deployment or point at its record")
-    if record["images"] != images:
-        measured = "accepts" if record["images"] else "does not accept"
+    if images and not record["images"]:
         raise RouteModalityError(
-            f"route {deployment!r} {measured} image parts (measured: {record['evidence']}), "
-            f"but AETHER_CORE_IMAGES={'on' if images else 'off'}; set it to {'on' if record['images'] else 'off'}")
-    return f"route {deployment}: images {'on' if images else 'off'} matches the measured route ({record['evidence']})"
+            f"route {deployment!r} does not accept image parts (measured: {record['evidence']}), "
+            "but AETHER_CORE_IMAGES=on; set it to off")
+    if images:
+        return f"route {deployment}: images on matches the measured route ({record['evidence']})"
+    measured = "accepts" if record["images"] else "does not accept"
+    return f"route {deployment}: images off; measured route {measured} image parts ({record['evidence']})"

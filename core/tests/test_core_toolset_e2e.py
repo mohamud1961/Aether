@@ -8,6 +8,7 @@ import pytest
 from aether.core.harbor_config import build_config
 from aether.core.loop import Trace, run_agent
 from aether.core.provider import ChatProvider
+from aether.core.route_modality import check as check_route
 from tests.core_fakes import LocalEnv, ScriptedClient, call
 
 
@@ -31,6 +32,9 @@ def test_minimal_profile_keeps_history_recall_and_completes_shell_work(tmp_path)
         call("finish", {"summary": "done"}, "finish"),
     ])
     config = replace(build_config(environ=BASE), control_dir=str(tmp_path / "control"))
+    route = tmp_path / "route.json"
+    route.write_text('{"deployment":"fixture","images":true,"evidence":"measured"}')
+    check_route({"AETHER_CORE_ROUTE_MODALITY": str(route)}, deployment="fixture", images=config.images)
     result = asyncio.run(run_agent(
         env=LocalEnv(work), task="Create result.txt", workdir=str(work),
         provider=ChatProvider(client, model="scripted", params={}), timeout_s=60,
