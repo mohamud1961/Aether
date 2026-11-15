@@ -96,7 +96,10 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
         s.report_steps.append(
             finish_report.record(s.result.steps, name, args, out, s.workdir)
         )
-        s.trace("tool", name=name, args=args, result=out, duration_s=duration)
+        # H1: call_id joins this event to the model turn that asked for it; delivery is the tag the owner wrote
+        # beside its operation record (delivered_<seq>), so an on-disk effect joins back to this call.
+        s.trace("tool", name=name, args=args, result=out, duration_s=duration, call_id=call["id"],
+                delivery=s.operation_delivery or None)
         if s.record and name == "terminal":
             fact = await s.record.after_terminal(args, out, s.elapsed())
             if fact:

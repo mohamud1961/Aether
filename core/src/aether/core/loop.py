@@ -395,6 +395,7 @@ async def _loop(s: _Session) -> None:
             reasoning=turn.reasoning,
             content=turn.content,
             tool_calls=turn.tool_calls,
+            response_id=turn.response_id or None,  # H1: joins this turn to its provider receipt and spend row
             effort=AFTER_CUT["reasoning_effort"] if cut and s.provider.takes_effort else (
                 s.config.image_effort if look else None),
         )
