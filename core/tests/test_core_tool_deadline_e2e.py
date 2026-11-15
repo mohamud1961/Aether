@@ -9,13 +9,16 @@ change dropping that bound fails.
 import asyncio
 import time
 
+import pytest
+
 from aether.core import browser
 from aether.core.loop import CoreConfig, Trace, run_agent
 from aether.core.provider import ChatProvider
 from tests.core_fakes import LocalEnv, ScriptedClient, call
 
 
-def test_a_hanging_host_call_stops_at_the_task_deadline(tmp_path, monkeypatch):
+@pytest.mark.parametrize("terminal_events", [False, True])
+def test_a_hanging_host_call_stops_at_the_task_deadline(tmp_path, monkeypatch, terminal_events):
     entered = []
 
     async def hang(self, life_s):
@@ -25,6 +28,10 @@ def test_a_hanging_host_call_stops_at_the_task_deadline(tmp_path, monkeypatch):
     async def factory(env):
         return "c" * 64
 
+    async def lookup(cid, host):
+        return None  # This fixture starts with a verified empty sidecar inventory.
+
+    monkeypatch.setattr(browser.Sidecar, "find", staticmethod(lookup))
     monkeypatch.setattr(browser.Sidecar, "start", hang)
     work = tmp_path / "work"
     work.mkdir()
@@ -36,7 +43,8 @@ def test_a_hanging_host_call_stops_at_the_task_deadline(tmp_path, monkeypatch):
     result = asyncio.run(run_agent(
         env=LocalEnv(work), task="Use the browser.", workdir=str(work),
         provider=ChatProvider(client, model="offline", params={}), trace=Trace(tmp_path / "trace.jsonl"),
-        timeout_s=20, config=CoreConfig(browser=factory, control_dir=str(tmp_path / "control")),
+        timeout_s=20, config=CoreConfig(browser=factory, terminal_events=terminal_events,
+                                        control_dir=str(tmp_path / "control")),
     ))
     elapsed = time.monotonic() - started
     assert entered, "the browser call never reached the hanging start: the test proves nothing"

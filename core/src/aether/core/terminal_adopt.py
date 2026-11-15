@@ -113,6 +113,7 @@ async def adopt(terminals, name: str) -> tuple[Session, dict] | None:
     unseen = state in ("running", "completed")
     session.cursor = int(offset) if unseen and offset and offset.isdigit() else int(size.strip() or 0)
     session.last_size = session.cursor
+    session.prompt_offset = session.cursor
     if unseen:
         # The model has not seen this command's outcome. The normal observation path reads the receipt (now or
         # later) and delivers the output from the recorded offset exactly once; new input waits until it has.

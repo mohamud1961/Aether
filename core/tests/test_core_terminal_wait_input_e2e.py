@@ -24,10 +24,11 @@ def test_wait_wakes_on_a_prompt_and_the_answered_command_completes(tmp_path, pre
         t = Terminals(LocalEnv(tmp_path), str(tmp_path), lambda: 1000.0,
                       control_dir=str(tmp_path / "ctl"), preserve_existing=preserve)
         try:
-            await t.use(name="ask", input="printf 'Proceed? [y/N] '; read answer; echo got-$answer", wait_s=0)
+            first = await t.use(name="ask", input="printf 'Proceed? [y/N] '; read answer; echo got-$answer", wait_s=5)
+            assert "Proceed? [y/N]" in first  # Force the already-delivered-prompt case.
             started = time.monotonic()
-            seen = await t.wait_events(["ask"], mode="all", wait_s=60)
-            assert time.monotonic() - started < 45  # well under the 60 s wait; the wake needs two 4 s quiet rounds
+            seen = await t.wait_events(["ask"], mode="all", wait_s=20)
+            assert time.monotonic() - started < 17, seen
             assert seen["pending"] == ["ask"] and not seen["completed"]
             assert seen["waiting_for_input"][0]["last_line"].rstrip().endswith("Proceed? [y/N]")
             answered = await t.use(name="ask", input="y\n", mode="keys", wait_s=0)

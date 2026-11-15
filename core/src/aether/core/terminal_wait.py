@@ -31,14 +31,18 @@ async def _stalled(terminal, session, quiet_since: dict, now: float,
         quiet_since[session.name] = (size, now)
         return None
     quiet_for = now - since[1]
-    last = ""
-    if size > session.cursor and quiet_for >= QUIET_S or quiet_s is not None and quiet_for >= quiet_s:
-        if size > session.cursor:
-            tail = clean(await terminal._read(session, max(session.cursor, size - 300), size)).rstrip("\n")
+    has_output = size > session.prompt_offset
+    check_prompt = has_output and quiet_for >= QUIET_S
+    quiet_reached = quiet_s is not None and quiet_for >= quiet_s
+    if check_prompt or quiet_reached:
+        last = ""
+        if has_output:
+            offset = max(session.prompt_offset, size - 300)
+            tail = clean(await terminal._read(session, offset, size)).rstrip("\n")
             last = tail.rsplit("\n", 1)[-1][-200:]
-        if size > session.cursor and quiet_for >= QUIET_S and _ASKS.search(last):
+        if check_prompt and _ASKS.search(last):
             return "asking", last
-        if quiet_s is not None and quiet_for >= quiet_s:
+        if quiet_reached:
             return "quiet", last
     return None
 

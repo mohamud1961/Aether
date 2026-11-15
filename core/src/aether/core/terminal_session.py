@@ -79,6 +79,7 @@ class Session:
     cursor: int = 0
     seq: int = 0
     pending: int = 0  # command whose completion marker has not been seen yet
+    prompt_offset: int = 0  # log position when the current command or last keystrokes were sent
     delivery_announced: int = 0  # last command announced for automatic result delivery
     dispatch_unconfirmed: bool = False  # whether the last command reached the shell is not yet resolved
     unseen: bool = False  # the pending command's state has not been shown to the model (adopted, or reply lost)

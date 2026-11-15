@@ -252,6 +252,8 @@ class Terminals(TerminalIO, TerminalLifecycle):
         self, session: Session, input: str, mode: str, interrupt: bool, wait_s: float = 0.0
     ) -> tuple[int, re.Match | None, bool] | None:
         facts_replay.before_terminal(session, mode, interrupt, self._capture_state)
+        if input or interrupt:
+            session.prompt_offset = max(session.cursor, session.last_size)
         if interrupt:
             if session.pty:
                 await self._write(session, "\x03")
