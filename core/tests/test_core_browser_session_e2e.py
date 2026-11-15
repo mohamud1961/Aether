@@ -51,6 +51,11 @@ class App(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        if self.path in ("/framed", "/framed-cross-site"):
+            frame = self.server.cross_site_frame if self.path.endswith("cross-site") else "/frame"
+            return self._send(f'<iframe name="fixture" src="{frame}"></iframe>'.encode())
+        if self.path == "/frame":
+            return self._send(b"""<title>Ready</title><button onclick="document.title='saved'">Save</button>""")
         if self.path == "/app":
             if "session=ada" not in (self.headers.get("Cookie") or ""):
                 return self._send(b"", 303, [("Location", "/login")])
@@ -66,10 +71,14 @@ class App(http.server.BaseHTTPRequestHandler):
 
 @pytest.fixture()
 def app():
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), App)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    yield f"http://127.0.0.1:{server.server_address[1]}"
-    server.shutdown()
+    with http.server.ThreadingHTTPServer(("127.0.0.1", 0), App) as server:
+        with http.server.ThreadingHTTPServer(("127.0.0.2", 0), App) as cross_site:
+            server.cross_site_frame = f"http://127.0.0.2:{cross_site.server_address[1]}/frame"
+            for app_server in (server, cross_site):
+                threading.Thread(target=app_server.serve_forever, daemon=True).start()
+            yield f"http://127.0.0.1:{server.server_address[1]}"
+            server.shutdown()
+            cross_site.shutdown()
 
 
 def refs(text):
@@ -158,6 +167,46 @@ def test_without_the_kept_browser_each_call_starts_blank(tmp_path, app):
     session.sidecar = car
     out = asyncio.run(session.use({"code": "from aether_browser import page\nprint(page().url)", "wait_s": 30}, 300))
     assert "No module named 'aether_browser'" in out
+
+
+@pytest.mark.parametrize("route", ["/framed", "/framed-cross-site"])
+def test_same_url_frame_reload_requires_a_fresh_observation(tmp_path, app, route, monkeypatch):
+    monkeypatch.setenv("AETHER_BROWSER_HOME", str(tmp_path / "home"))
+    session = browser.BrowserSession(None, None, host=local_host, persistent=True)
+    car = browser.Sidecar("c" * 64, local_host)
+    car.started, car.runs.ops_dir = True, str(tmp_path / "ops")
+    session.sidecar = car
+
+    async def call(code):
+        return await session.use({"code": code, "wait_s": 30}, 300)
+
+    async def go():
+        try:
+            before = await call(f"from aether_browser import page, snapshot\npage().goto({app + route!r})\nsnapshot()")
+            shown = refs(before)['button "Save"']
+            reloaded = await call(
+                "from aether_browser import page\npg = page()\nframe = pg.frame(name='fixture')\n"
+                "with pg.expect_event('framenavigated', predicate=lambda f: f == frame):\n"
+                "    frame.evaluate('location.reload()')\n"
+                "frame.get_by_role('button', name='Save').wait_for()\n"
+                "print('reloaded', pg.url, frame.url, frame.title())")
+            assert f"reloaded {app + route} " in reloaded and "/frame Ready" in reloaded
+            after = await call(
+                "from aether_browser import page, ref, snapshot\n"
+                f"try:\n    ref({shown!r}).click()\nexcept LookupError as exc:\n    print(exc)\n"
+                "print('old ref title:', page().frame(name='fixture').title())\nsnapshot()")
+            fresh = refs(after)['button "Save"']
+            saved = await call(
+                "from aether_browser import page, ref\n"
+                f"ref({fresh!r}).click()\nprint('new ref title:', page().frame(name='fixture').title())")
+            assert "old ref title: Ready" in after and "stale ref" in after, after
+            assert "new ref title: saved" in saved, saved
+        finally:
+            pid = tmp_path / "home" / "chrome.pid"
+            if pid.exists():
+                os.kill(int(pid.read_text()), signal.SIGKILL)
+
+    asyncio.run(go())
 
 
 def test_the_tool_description_names_the_kept_browser_only_in_session_mode():

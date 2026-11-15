@@ -11,8 +11,8 @@ keeps writing ordinary Playwright; nothing here interprets the page.
 
 Element references are Playwright's own (``page.aria_snapshot(mode="ai")`` lists elements as ``[ref=e5]``,
 ``page.locator("aria-ref=e5")`` targets one). Refs are bound per connection, so ``page()`` takes a fresh snapshot to
-rebind them. ``ref()`` checks the tab's main document and the element's role and name against the last snapshot shown
-for that page. A full navigation can change the document while keeping the same URL.
+rebind them. ``ref()`` checks the tab's document, frame documents for nested refs, and the element's role and name
+against the last snapshot shown for that page. A reload can change any document while keeping its URL.
 
 Records, in ``HOME`` (``/tmp/.aether-browser``): ``profile/`` (Chromium's), ``chrome.pid``, ``snap_<n>.txt`` every
 snapshot shown, with its page and URL, ``last_<page>.txt`` the latest one per page. When the call ends, one line of page
@@ -32,7 +32,7 @@ SOURCE = r'''
 """One browser kept open for the whole task. Use page() to get it; see its docstrings."""
 import atexit, glob, json, os, re, signal, subprocess, sys, time
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import Error, sync_playwright
 
 HOME = os.environ.get("AETHER_BROWSER_HOME", "/tmp/.aether-browser")
 _PAGE_FACTS = False
@@ -93,14 +93,39 @@ def _port():
     raise RuntimeError("the task browser did not start (no DevTools port after 15 s)")
 
 
-def _document(page):
+def _frame_loaders(tree):
+    frame = tree["frame"]
+    loaders = {frame["id"]: frame["loaderId"]}
+    for child in tree.get("childFrames", []):
+        loaders.update(_frame_loaders(child))
+    return loaders
+
+
+def _document(page, include_frames=True):
     cdp = page.context.new_cdp_session(page)
     try:
         target = cdp.send("Target.getTargetInfo")["targetInfo"]["targetId"]
-        loader = cdp.send("Page.getFrameTree")["frameTree"]["frame"]["loaderId"]
-        return target, loader
+        tree = cdp.send("Page.getFrameTree")["frameTree"]
     finally:
         cdp.detach()
+    loader = tree["frame"]["loaderId"]
+    if not include_frames:
+        return target, loader, None
+    loaders = _frame_loaders(tree)
+    frames = page.frames
+    # Chromium's page session omits frames in a separate renderer. Get those from their own CDP sessions.
+    for frame in frames[1:]:
+        if len(loaders) >= len(frames):
+            break
+        try:
+            child = page.context.new_cdp_session(frame)
+            try:
+                loaders.update(_frame_loaders(child.send("Page.getFrameTree")["frameTree"]))
+            finally:
+                child.detach()
+        except Error:
+            continue  # local frames share a parent's session; incomplete coverage is checked below
+    return target, loader, loaders if len(loaders) == len(frames) else None
 
 
 def _listed(label, items):
@@ -187,13 +212,15 @@ def snapshot(target=None, depth=None):
     returned. Act on an element with ref("e5")."""
     pg = target if target is not None and hasattr(target, "goto") else page()
     root = target if target is not None and not hasattr(target, "goto") else pg
-    target_id, loader = _document(pg)
+    document = _document(pg)
+    target_id, loader, frames = document
     text = root.aria_snapshot(mode="ai", depth=depth)
-    if _document(pg) != (target_id, loader):
+    if _document(pg) != document:
         raise LookupError("the document changed during the snapshot; take a new snapshot()")
     n = len(glob.glob(os.path.join(HOME, "snap_*.txt"))) + 1
     head = f"[snapshot #{n}; page {target_id[:12]}; {pg.url}]"
-    for name, record in ((f"snap_{n}.txt", head), (f"last_{target_id}.txt", loader)):
+    generation = json.dumps([loader, frames], separators=(",", ":"))
+    for name, record in ((f"snap_{n}.txt", head), (f"last_{target_id}.txt", generation)):
         with open(os.path.join(HOME, name + ".tmp"), "w") as f:
             f.write(record + "\n" + text)
         os.replace(os.path.join(HOME, name + ".tmp"), os.path.join(HOME, name))
@@ -211,22 +238,26 @@ def _described(text, ref):
 
 def ref(name, pg=None):
     """Locator for element ``name`` (e.g. "e5" or "f1e2") from the last snapshot shown for this page. Refuses when
-    the main document changed or the snapshot's ref no longer has the same role and name."""
+    its document changed or the snapshot's ref no longer has the same role and name."""
     pg = pg or page()
-    target_id, loader = _document(pg)
+    frame_ref = name.startswith("f")
+    document = _document(pg, frame_ref)
+    target_id, loader, frames = document
     try:
         with open(os.path.join(HOME, f"last_{target_id}.txt")) as f:
-            shown_loader = f.readline().rstrip("\n")
+            shown_loader, shown_frames = json.loads(f.readline())
             shown = f.read()
-    except OSError:
+    except (OSError, ValueError):
         raise LookupError("no snapshot of this page has been shown yet; call snapshot() first") from None
     if loader != shown_loader:
         raise LookupError(f"stale ref {name}: the page document changed; take a new snapshot()")
+    if frame_ref and (frames is None or frames != shown_frames):
+        raise LookupError(f"stale ref {name}: the frame documents changed or could not be verified; take a new snapshot()")
     was = _described(shown, name)
     if was is None:
         raise LookupError(f"ref {name} is not in the last snapshot of this page")
     now = _described(pg.aria_snapshot(mode="ai"), name)
-    if _document(pg) != (target_id, loader):
+    if _document(pg, frame_ref) != document:
         raise LookupError(f"stale ref {name}: the page document changed; take a new snapshot()")
     if now != was:
         raise LookupError(f"stale ref {name}: it was {was!r} in the last snapshot shown, now "
