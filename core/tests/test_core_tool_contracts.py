@@ -82,6 +82,7 @@ def test_parallel_reads_keep_call_ids_and_cannot_cross_a_write(tmp_path):
         chunk(finish="tool_calls"),
     ]
     client = ScriptedClient([batch, call("finish", {"summary": "done"})])
+    trace = tmp_path / "trace"
     result = asyncio.run(
         run_agent(
             env=RendezvousEnv(work),
@@ -89,7 +90,7 @@ def test_parallel_reads_keep_call_ids_and_cannot_cross_a_write(tmp_path):
             workdir=str(work),
             provider=ChatProvider(client, model="scripted", params={}),
             timeout_s=30,
-            trace=Trace(tmp_path / "trace"),
+            trace=Trace(trace),
             config=CoreConfig(control_dir=str(tmp_path / "ctl"), parallel_reads=True),
         )
     )
@@ -97,4 +98,6 @@ def test_parallel_reads_keep_call_ids_and_cannot_cross_a_write(tmp_path):
     assert [m["tool_call_id"] for m in replies] == ["a", "b", "write", "after"]
     assert "before-a" in replies[0]["content"] and "before-b" in replies[1]["content"]
     assert "after-a" in replies[3]["content"] and result.status == "finished"
+    (group,) = [row for row in map(json.loads, trace.read_text().splitlines()) if row["event"] == "parallel_read_group"]
+    assert group["calls"] == group["max_in_flight"] == 2
     assert CoreConfig().parallel_reads is False

@@ -49,14 +49,25 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
             while end < len(calls) and calls[end]["function"]["name"] == "read_file":
                 end += 1
             gate = asyncio.Semaphore(4)
+            started = time.monotonic()
+            in_flight = peak = 0
 
             async def read_one(item):
+                nonlocal in_flight, peak
                 async with gate:
-                    return await _invoke(s, item)
+                    in_flight += 1
+                    peak = max(peak, in_flight)
+                    try:
+                        return await _invoke(s, item)
+                    finally:
+                        in_flight -= 1
 
             results = await asyncio.gather(
                 *(read_one(item) for item in calls[index:end])
             )
+            if len(results) > 1:
+                s.trace("parallel_read_group", calls=len(results), max_in_flight=peak,
+                        duration_s=round(time.monotonic() - started, 3))
             buffered.update(zip(range(index, end), results))
         s.operation_delivery = ""
         args, out, finished, duration, held_finish = (

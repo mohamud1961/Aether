@@ -9,6 +9,7 @@ import os
 import ast
 import asyncio
 from pathlib import Path
+import time
 from types import SimpleNamespace as NS
 import unittest
 
@@ -41,6 +42,7 @@ def append(s,*messages):
 
 SCOPE={
     "asyncio":asyncio,
+    "time":time,
     "_invoke":fake_invoke,
     "_save":fake_save,
     "_require_environment":require,
