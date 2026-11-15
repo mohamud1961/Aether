@@ -24,6 +24,8 @@ import json
 import os
 import pickle
 from pathlib import Path
+import re
+import stat
 from typing import Any
 
 LOG = "log.jsonl"
@@ -46,7 +48,7 @@ def _fsync_dir(path: Path) -> None:
 class SessionLog:
     def __init__(self, directory: str | Path) -> None:
         self.dir = Path(directory)
-        self.dir.mkdir(parents=True, exist_ok=True)
+        self.dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.seq = sum(1 for _ in _lines(self.dir / LOG))
 
     def write(self, kind: str, turn: int, state: dict[str, Any]) -> dict[str, Any]:
@@ -77,12 +79,29 @@ def _lines(path: Path):
             yield line
 
 
-# Trust boundary: the snapshots are written by this controller to the host logs directory (never the sandbox) and
-# are loaded only when their sha256 matches the fsynced log line, the same boundary as fork.keep's checkpoint pickle.
-# Do not point recover() at a directory a task or another party can write.
+# Trust boundary: the snapshots are pickles written by this controller to the host logs directory (never the
+# sandbox). The sha256 only ties a snapshot to its log line; whoever can write the directory can write both, so the
+# boundary is the directory itself: recover() refuses a directory or snapshot not owned by this user or writable by
+# group/others, and any snapshot name that is not a plain ``NNNNNN-kind.pkl`` basename (no path escapes).
+NAME = re.compile(r"^\d{6}-(asked|done)\.pkl$")
+
+
+def _private(path: Path) -> str | None:
+    st = path.lstat()
+    if stat.S_ISLNK(st.st_mode):
+        return f"{path} is a symlink"
+    if st.st_uid != os.getuid():
+        return f"{path} is not owned by this user"
+    if st.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        return f"{path} is writable by group or others"
+    return None
+
+
 def latest(directory: str | Path) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
     """The newest trusted record, its state, and why any newer lines were not trusted."""
     root = Path(directory)
+    if root.exists() and (problem := _private(root)):
+        raise SessionLogError(f"untrusted session directory: {problem}")
     rejected: list[str] = []
     rows = []
     for n, line in enumerate(_lines(root / LOG), 1):
@@ -94,9 +113,15 @@ def latest(directory: str | Path) -> tuple[dict[str, Any], dict[str, Any], list[
         except ValueError as exc:
             rejected.append(f"line {n}: {exc}")
     for row in reversed(rows):
+        if not isinstance(row["file"], str) or not NAME.match(row["file"]):
+            rejected.append(f"seq {row['seq']}: snapshot name not allowed")
+            continue
         path = root / row["file"]
         if not path.is_file():
             rejected.append(f"seq {row['seq']}: snapshot missing")
+            continue
+        if problem := _private(path):
+            rejected.append(f"seq {row['seq']}: {problem}")
             continue
         data = path.read_bytes()
         if hashlib.sha256(data).hexdigest() != row["sha256"]:

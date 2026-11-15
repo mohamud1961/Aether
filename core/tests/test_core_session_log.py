@@ -136,6 +136,30 @@ def test_known_bad_a_snapshot_that_changed_after_logging_is_not_trusted(tmp_path
     assert row["seq"] == 0 and any("hash differs" in r for r in rejected)
 
 
+def test_known_bad_a_snapshot_name_outside_the_log_directory_is_never_loaded(tmp_path):
+    root = _write(tmp_path, 1)
+    elsewhere = tmp_path / "evil.pkl"
+    elsewhere.write_bytes(b"not loaded")
+    import hashlib
+    row = {"seq": 1, "kind": "done", "turn": 1, "file": "../evil.pkl",
+           "sha256": hashlib.sha256(b"not loaded").hexdigest(), "bytes": 10}
+    with open(root / session_log.LOG, "a") as fh:
+        fh.write(json.dumps(row) + "\n")
+    row, _, rejected = session_log.latest(root)
+    assert row["seq"] == 0 and any("name not allowed" in r for r in rejected)
+
+
+def test_known_bad_a_directory_others_can_write_is_refused(tmp_path):
+    root = _write(tmp_path, 1)
+    root.chmod(0o777)
+    with pytest.raises(session_log.SessionLogError, match="writable by group or others"):
+        session_log.latest(root)
+    root.chmod(0o700)
+    (root / "000000-done.pkl").chmod(0o666)
+    with pytest.raises(session_log.SessionLogError, match="seq 0: .* writable by group or others"):
+        session_log.latest(root)
+
+
 def test_the_switch_maps_to_the_config():
     from aether.core.harbor_agent import build_config
     base = {"AETHER_CORE_REVIEW": "off", "AETHER_CORE_CONTEXT": "clm", "AETHER_CORE_REPL": "off",
