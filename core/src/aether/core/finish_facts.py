@@ -1,4 +1,4 @@
-"""Delivered state at the first finish request, as facts from Core's own records (AETHER_CORE_FINISH_FACTS=on).
+"""Delivered state at finish when Core still owns an uncollected operation (AETHER_CORE_FINISH_FACTS=on).
 
 Plan §7 change 6: at finish, report delivered state as facts — files changed against the start, processes still
 running, and operations whose result was not shown or whose effect is unknown. No advice and no judgement: the model
@@ -117,7 +117,7 @@ async def started_elsewhere(s, listed: list[str]) -> list[str] | str:
     return rows
 
 
-async def observe(s) -> dict[str, Any]:
+async def observe(s, pending: list[str]) -> dict[str, Any]:
     written = {step.wrote for step in s.report_steps if step.wrote and not step.failed}
     files, total = await _files(s.env, s.workdir, s.config.control_dir, written, check_absence=True)
     identities = {pid: token for t in s.terminals._sessions.values() for pid, token in t.identity.items()}
@@ -127,7 +127,7 @@ async def observe(s) -> dict[str, Any]:
         processes = [f"(process listing unavailable: {exc})"]
     elsewhere = await started_elsewhere(s, processes if isinstance(processes, list) else [])
     return {"files": files, "files_total": total, "processes": processes, "started_elsewhere": elsewhere,
-            "operations": await operations(s)}
+            "operations": pending}
 
 
 def render(row: dict[str, Any]) -> str:
@@ -161,10 +161,14 @@ def render(row: dict[str, Any]) -> str:
 
 
 async def at_finish(s) -> str | None:
-    """The facts for the first finish of a worker run, or None (switch off, already shown, or too little time)."""
+    """Hold once when the worker has a pending operation to inspect."""
     if not getattr(s.config, "finish_facts", False) or s.result.extras.get("finish_facts") or s.remaining() < 15:
         return None
-    row = await observe(s)
+    pending = await operations(s)
+    if not pending:
+        s.trace("finish_facts_skipped", reason="no_pending_operations")
+        return None
+    row = await observe(s, pending)
     s.result.extras["finish_facts"] = {k: (v if k != "files" or isinstance(v, str) else len(v)) for k, v in row.items()}
     s.trace("finish_facts", **{k: v for k, v in row.items() if k != "files"},
             files=row["files"] if isinstance(row["files"], str) else [f["path"] for f in row["files"]])

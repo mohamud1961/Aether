@@ -85,3 +85,22 @@ def test_a_daemon_that_left_the_terminal_tree_is_still_reported(tmp_path):
     assert not any("aether-daemon-probe" in p or "sleep 37" in p for p in row["processes"]), row["processes"]
     shown = [m for m in client.requests[4]["messages"] if m["role"] == "tool"][-1]["content"]
     assert "Other processes started during this run and still running:" in shown
+
+
+def test_clean_finish_needs_no_extra_model_request(tmp_path):
+    work = tmp_path / "work"
+    work.mkdir()
+    client = ScriptedClient([
+        call("write_file", {"path": "answer.txt", "content": "42\n"}, "write"),
+        call("finish", {"summary": "Done."}, "finish"),
+        call("finish", {"summary": "Done."}, "unnecessary-second-finish"),
+    ])
+    path = tmp_path / "trace.jsonl"
+    result = asyncio.run(run_agent(
+        env=LocalEnv(work), task="Write 42 into answer.txt.", workdir=str(work),
+        provider=ChatProvider(client, model="offline", params={}), trace=Trace(path),
+        timeout_s=90, config=CoreConfig(terminal_events=True, finish_facts=True,
+                                       control_dir=str(tmp_path / "ctl"), end_processes="stop"),
+    ))
+    assert result.status == "finished" and (work / "answer.txt").read_text() == "42\n"
+    assert len(client.requests) == 2, "finishing a settled task made an extra provider request"
