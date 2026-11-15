@@ -73,7 +73,8 @@ async def died_after_sending(tmp_path, idempotency):
         began = time.monotonic()
         first = await call
         waited = time.monotonic() - began
-        retry = await mcp.use(intent(tmp_path, 0), 120)
+        # Idempotency applies to an identical intent, including its arguments.
+        retry = await mcp.use(intent(tmp_path, 6), 120)
         return first, waited, retry, len((tmp_path / "effects").read_text())
     finally:
         await mcp.close()
