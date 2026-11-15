@@ -18,6 +18,14 @@ Every request is an operation (operations.py) tracked until the model has been s
 - An identical request (same server, action, tool and arguments) made while an earlier one is tracked attaches to
   it instead of being sent again. A tool call has effects outside the sandbox; a retry after an unclear failure is
   how they get repeated. Once its result has been shown, an identical request is a new, deliberate one.
+- A client daemon that ends (A3) is noticed while a request waits (its ``owner`` pid and start time, checked about
+  once a second), not after the wait's deadline. Each of its tracked requests is resolved from its own records: an
+  answer it wrote is shown; one it never took is cancelled for certain (the request being waited on is then sent
+  once on a new client); one it took without answering may have reached the server, so its effect is stated as
+  unknown. The server is then served by a new client.
+- With ``idempotency`` (AETHER_CORE_MCP_IDEMPOTENCY=on, A14) each tool call carries a key in ``params._meta``. An
+  identical call made after an earlier one ended with its effect unknown is sent with that call's key, so a server
+  that honours keys applies it once. Whether a server honours them is not known to Core, and the text says so.
 """
 
 from __future__ import annotations
@@ -31,10 +39,22 @@ import time
 from typing import Any
 
 from . import mcp_adopt, operations
+from .mcp_adopt import IDEMPOTENCY_META
 from .env import ProcessCleanupError, put_bytes, run, stop_process_tree
 from .mcp_client_src import SOURCE
 
 MAX_CHARS = 30_000
+MCP_IDEMPOTENCY_ENV = "AETHER_CORE_MCP_IDEMPOTENCY"
+LIVENESS_EVERY_S = 1.0
+
+
+class _ClientLost(Exception):
+    """The client daemon ended while a request waited: ``text`` states what became of its requests; ``resend`` when
+    the request being waited on was never taken (cancelled for certain), so it can be sent once on a new client."""
+
+    def __init__(self, text: str, resend: bool):
+        super().__init__(text)
+        self.text, self.resend = text, resend
 
 
 def tool(servers: list[dict[str, Any]]) -> dict:
@@ -68,8 +88,12 @@ def normalize(servers: Any) -> list[dict[str, Any]]:
 
 
 class Mcp:
-    def __init__(self, env, control_dir: str, servers: list[dict[str, Any]], adopt: bool = False):
+    def __init__(self, env, control_dir: str, servers: list[dict[str, Any]], adopt: bool = False,
+                 idempotency: bool = False):
         self.env, self.root = env, f"{control_dir}/mcp"
+        self.idempotency = idempotency
+        # Identical calls whose effect ended unknown: key -> (idempotency key, request number), reused once.
+        self.unknown_keys: dict[str, tuple[str, int]] = {}
         # Adoption across controllers (mcp_adopt) and delivery authority (operations.seen), as for terminals.
         self.adopt = adopt
         self.delivery_tag = lambda: ""
@@ -122,7 +146,16 @@ class Mcp:
             await asyncio.sleep(0.2)
         raise TimeoutError(f"MCP server {name}: the client was not ready before its startup deadline")
 
-    async def use(self, args: dict[str, Any], remaining: float) -> str:
+    async def use(self, args: dict[str, Any], remaining: float, resent: bool = False) -> str:
+        began = time.monotonic()
+        try:
+            return await self._use(args, remaining)
+        except _ClientLost as lost:
+            if not lost.resend or resent:
+                return lost.text
+            return lost.text + await self.use(args, remaining - (time.monotonic() - began), resent=True)
+
+    async def _use(self, args: dict[str, Any], remaining: float) -> str:
         name, action = args["server"], args["action"]
         if name not in self.servers:
             return f"error: no declared MCP server named {name!r}"
@@ -135,14 +168,22 @@ class Mcp:
         same = next((i for i, op in self.ops.items() if op["server"] == name and op["key"] == key), None)
         if same is not None:
             # A retry of a request already sent and not yet shown: attach to it, never send it twice.
-            return earlier + await self._await(d, same, timeout, attached=True)
+            return earlier + await self._waited(earlier, d, same, timeout, attached=True)
         self.seq += 1
         ident = self.seq
         method, params = (("tools/list", {}) if action == "list" else
                           ("tools/call", {"name": args["tool"], "arguments": args.get("arguments") or {}}))
+        kid, reused = None, None
+        if self.idempotency and action == "call":
+            kid, reused = self.unknown_keys.pop(key, (secrets.token_hex(16), None))
+            params["_meta"] = {IDEMPOTENCY_META: kid}
+            if reused is not None:
+                earlier += (f"[sent with the idempotency key of MCP request #{reused}, whose effect was unknown: a server "
+                            "that honours keys applies it once; whether this server does is not known]\n")
         body = json.dumps({"id": ident, "method": method, "params": params}).encode()
         # Tracked before anything is written: from here a lost reply leaves the request to be resolved, never resent.
-        self.ops[ident] = {"server": name, "key": key, "tool": args.get("tool"), "action": action, "published": False}
+        self.ops[ident] = {"server": name, "key": key, "tool": args.get("tool"), "action": action, "published": False,
+                           "kid": kid}
         await put_bytes(self.env, body, f"{d}/req.tmp.{ident}")
         q = shlex.quote
         published = await run(self.env, f"mv -f {q(f'{d}/req.tmp.{ident}')} {q(f'{d}/req_{ident}.json')}", timeout_s=10)
@@ -150,7 +191,32 @@ class Mcp:
             del self.ops[ident]  # mv is atomic: a failed rename published nothing
             return earlier + f"error: MCP server {name}: could not publish request"
         self.ops[ident]["published"] = True
-        return earlier + await self._await(d, ident, timeout)
+        return earlier + await self._waited(earlier, d, ident, timeout)
+
+    async def _waited(self, earlier: str, d: str, ident: int, timeout: float, attached: bool = False) -> str:
+        """``_await``, keeping the notes already made for this use when the client turns out to have ended."""
+        try:
+            return await self._await(d, ident, timeout, attached)
+        except _ClientLost as lost:
+            raise _ClientLost(earlier + lost.text, lost.resend) from None
+
+    async def revoke_unpublished(self, ident: int) -> str | None:
+        """For a request whose publication reply was lost: ``run`` (the client took it; it is then published) or
+        ``revoked`` (cancelled now, never sent; it is no longer tracked). None when the records cannot be read."""
+        op, q = self.ops[ident], shlex.quote
+        d = self.started.get(op["server"])
+        if d is None:
+            return None
+        took = await run(self.env, f"cd {q(d)} || exit 4; ln -s {operations.REVOKED} start_{ident} 2>/dev/null; "
+                                   f"readlink start_{ident}; true", timeout_s=10)
+        token = took.stdout.strip()
+        if took.code != 0 or token not in (operations.RUN, operations.REVOKED):
+            return None
+        if token == operations.REVOKED:
+            del self.ops[ident]
+        else:
+            op["published"] = True
+        return token
 
     async def _settle(self, name: str, d: str, key: str) -> str:
         """Resolve this server's tracked requests before a new one: cancel any whose publication was lost and that the
@@ -160,17 +226,13 @@ class Mcp:
             if op["server"] != name:
                 continue
             if not op["published"]:
-                took = await run(self.env, f"cd {q(d)} || exit 4; ln -s {operations.REVOKED} start_{ident} 2>/dev/null; "
-                                           f"readlink start_{ident}; true", timeout_s=10)
-                token = took.stdout.strip()
-                if took.code != 0 or token not in (operations.RUN, operations.REVOKED):
+                token = await self.revoke_unpublished(ident)
+                if token is None:
                     continue  # unreadable: stays tracked, and an identical request still attaches to it
                 if token == operations.REVOKED:
-                    del self.ops[ident]
                     notes.append(f"[MCP request #{ident} ({op['tool'] or op['action']}) was never sent: its publication "
                                  "failed before the client took it, and it is now cancelled. Nothing reached the server.]")
                     continue
-                op["published"] = True
             if op["key"] == key:
                 continue
             got = await run(self.env, f"cat {q(f'{d}/resp_{ident}.json')} 2>/dev/null; true", timeout_s=30)
@@ -185,21 +247,63 @@ class Mcp:
         started = time.monotonic()
         head = (f"[this request matches MCP request #{ident}, sent earlier and not yet shown; it was not sent again. "
                 "Its result:]\n") if attached else ""
+        checked = started
         while time.monotonic() - started < timeout:
             got = await run(self.env, f"cat {q(f'{d}/resp_{ident}.json')} 2>/dev/null; true", timeout_s=30)
             if got.stdout.strip():
                 return head + await self._finish(d, ident, json.loads(got.stdout), time.monotonic() - started)
+            if time.monotonic() - checked >= LIVENESS_EVERY_S:
+                checked = time.monotonic()
+                if await mcp_adopt.client_alive(self.env, d) is False:
+                    text, resend = await self._client_lost(op["server"], d, ident)
+                    raise _ClientLost(head + text, resend)
             await asyncio.sleep(0.2)
         return (f"[MCP request #{ident} to {op['server']} ({op['tool'] or op['action']}) has no result after "
                 f"{timeout:g} s. It was published to the client, so its effect is unknown until its answer arrives. "
                 "Core shows that answer at the next mcp use; an identical request attaches to it instead of being "
                 "sent again.]")
 
+    async def _client_lost(self, name: str, d: str, waiting: int) -> tuple[str, bool]:
+        """Resolve every tracked request of server ``name`` after its client (session ``d``) ended; the server gets a
+        new client at its next use. Returns the facts and whether request ``waiting`` was never taken."""
+        if self.started.get(name) == d:
+            del self.started[name]
+        q, notes, resend = shlex.quote, [f"[the MCP client for server {name} ended]"], False
+        for ident, op in sorted(self.ops.items()):
+            if op["server"] != name:
+                continue
+            what = f"MCP request #{ident} ({op['tool'] or op['action']})"
+            got = await run(self.env, f"cd {q(d)} || exit 4; cat resp_{ident}.json 2>/dev/null; echo; echo __SEP__; "
+                                      f"ln -s {operations.REVOKED} start_{ident} 2>/dev/null; readlink start_{ident}",
+                            timeout_s=10)
+            reply, _, token = got.stdout.partition("__SEP__\n")
+            if got.code == 0 and reply.strip():
+                notes.append(f"[{what} was answered before the client ended:]\n"
+                             + await self._finish(d, ident, json.loads(reply), 0.0))
+                continue
+            token = token.strip()
+            del self.ops[ident]
+            if got.code == 0 and token == operations.REVOKED:
+                resend = resend or ident == waiting
+                notes.append(f"[{what} was never sent: the client ended before taking it, and it is now cancelled"
+                             + ("; it is sent once on a new client]" if ident == waiting else "]"))
+                continue
+            if op.get("kid"):
+                self.unknown_keys[op["key"]] = (op["kid"], ident)
+            self.calls.append({"server": name, "action": op["action"], "tool": op["tool"], "error": True, "s": 0.0})
+            notes.append(f"[{what} was taken by the client, which ended before any answer: the request may have "
+                         "reached the server, so its effect is unknown. Check the result before calling again.]"
+                         if got.code == 0 and token == operations.RUN else
+                         f"[{what}: its records could not be read after the client ended; its effect is unknown]")
+        return "\n".join(notes) + "\n", resend
+
     async def _finish(self, d: str, ident: int, reply: dict, seconds: float) -> str:
         op = self.ops[ident]
         if reply.get("id") != ident:
             return f"error: MCP server {op['server']}: response identity does not match the request"
         rendered = await self._render(d, ident, op["action"], reply)
+        if op.get("kid") and "effect is unknown" in rendered:
+            self.unknown_keys[op["key"]] = (op["kid"], ident)
         if self.adopt:  # the continued conversation acknowledges the token
             tag = self.delivery_tag()
             recorded = await run(self.env, operations.mark_delivered(d, ident, tag), timeout_s=10)

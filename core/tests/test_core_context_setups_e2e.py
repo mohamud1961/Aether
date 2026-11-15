@@ -7,7 +7,6 @@ the switch off no rehydration note appears even though the file changed.
 """
 
 import asyncio
-from types import SimpleNamespace
 
 import pytest
 

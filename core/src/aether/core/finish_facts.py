@@ -16,17 +16,29 @@ a decisive history fact at finish was read as confirmation 0/12 (P2). The start 
 from __future__ import annotations
 
 import shlex
+import uuid
 from typing import Any
 
 from .env import alive_test, list_process_tree, run
 from .finish_report import _files
-from .operations import DONE
+from . import op_phases
+from .operations import DONE, RUN
 
 MAX_LISTED = 12
+# Processes started after the run's start marker, from /proc (no ps or awk needed): "pid ppid command" per line.
+# The scanning shell and its own children are skipped. Start times are boot time + start ticks, in whole seconds.
+_STARTED_SINCE = (
+    'm="$1/start_marker"; [ -e "$m" ] || { echo __NO_MARKER__; exit 0; }; t0=$(stat -c %Y "$m") || exit 3; '
+    'bt=$(sed -n "s/^btime //p" /proc/stat); hz=$(getconf CLK_TCK 2>/dev/null || echo 100); me=$$; '
+    'for d in /proc/[0-9]*; do p=${d#/proc/}; [ "$p" = "$me" ] && continue; '
+    's=$(cat "$d/stat" 2>/dev/null) || continue; set -- ${s##*) }; [ "$2" = "$me" ] && continue; '
+    '[ $((bt + ${20} / hz)) -ge "$t0" ] || continue; '
+    'c=$(tr "\\000" " " < "$d/cmdline" 2>/dev/null); [ -n "$c" ] && echo "$p $2 $c"; done; true'
+)
 
 
 async def terminal_operations(terminals) -> list[str]:
-    """Sample outstanding terminal receipts without waiting for work or consuming output."""
+    """Sample outstanding terminal receipts and start tokens without waiting for work or consuming output."""
     pending = [(name, session) for name, session in sorted(terminals._sessions.items())
                if session.pending or session.dispatch_unconfirmed]
     if not pending:
@@ -34,50 +46,75 @@ async def terminal_operations(terminals) -> list[str]:
     q = shlex.quote
     commands = []
     for index, (_, session) in enumerate(pending):
-        path = q(f"{session.root}/done_{session.pending or session.seq}")
+        seq = session.pending or session.seq
+        path, token = q(f"{session.root}/done_{seq}"), q(f"{session.root}/start_{seq}")
         # A matching receipt takes precedence over process liveness.
         commands.append(f"printf '%s ' {index}; if [ -s {path} ]; then head -c 160 {path} | tr '\\n' ' '; "
-                        f"elif {alive_test(session.pid)}; then printf alive; "
-                        "else printf absent; fi; printf '\\n'")
+                        f"elif {alive_test(session.pid)}; then printf 'alive '; readlink {token} 2>/dev/null; "
+                        f"else printf 'absent '; readlink {token} 2>/dev/null; fi; printf '\\n'")
     try:
         response = await run(terminals._env, "; ".join(commands), timeout_s=2)
         statuses = dict((i, state.strip()) for i, _, state in
                         (line.partition(" ") for line in response.stdout.splitlines())) if response.code == 0 else {}
     except (OSError, RuntimeError, TimeoutError):
         statuses = {}
+    gated = terminals._preserve_existing  # commands run only after taking their start token
     lines = []
     for index, (name, session) in enumerate(pending):
         seq = session.pending or session.seq
-        state = statuses.get(str(index), "")
+        state, _, token = statuses.get(str(index), "").partition(" ")
         marker = DONE.match(state)
         if marker and int(marker[1]) == seq:
-            status = f"completed with exit {marker[2]}; result not shown"
-        elif state == "alive" and not session.dispatch_unconfirmed:
-            status = "still running" + ("; result not shown" if session.unseen else "")
+            status = op_phases.completed(marker[2])
+        elif state == "alive" and (token == RUN or not (gated or session.dispatch_unconfirmed)):
+            status = op_phases.RUNNING
+        elif state == "alive" and not token:
+            status = op_phases.WAITING
+        elif state == "absent" and (token == RUN or not (gated or session.dispatch_unconfirmed)):
+            status = op_phases.LOST
         else:
-            status = "no verified completion; effect unknown"
+            status = op_phases.UNREADABLE
         lines.append(f"terminal {name}: command #{seq} {status}")
     return lines
 
 
 async def operations(s) -> list[str]:
-    lines = await terminal_operations(s.terminals)
+    """One line per operation whose result the model has not seen, stating the phase Core can prove (op_phases)."""
+    lines = await op_phases.settle(s)
+    lines += await terminal_operations(s.terminals)
     repl = getattr(s, "repl", None)
     if repl is not None:
-        if getattr(repl, "unconfirmed", False):
-            lines.append(f"python: cell #{repl.pending or repl.seq} submission unconfirmed; effect unknown")
-        elif getattr(repl, "pending", 0):
-            lines.append(f"python: no completion collected for cell #{repl.pending}")
-    mcp = getattr(s, "mcp", None)
-    for ident, op in sorted(getattr(mcp, "ops", {}).items()):
-        state = "no answer yet" if op.get("published") else "sending unconfirmed"
-        lines.append(f"mcp {op.get('server')}: request #{ident} ({op.get('action')} {op.get('tool') or ''}".rstrip()
-                     + f") {state}; effect unknown")
-    car = getattr(getattr(s, "browser", None), "sidecar", None)
-    for n, run in sorted(getattr(getattr(car, "runs", None), "open", {}).items()):
-        lines.append(f"browser run #{n}: " + ("result not shown yet" if run.get("launched") else
-                                               "launch unconfirmed; effect unknown"))
+        lines += await op_phases.python_phase(repl)
+    if getattr(s, "mcp", None) is not None:
+        lines += await op_phases.mcp_phases(s.mcp)
+    runs = getattr(getattr(getattr(s, "browser", None), "sidecar", None), "runs", None)
+    if runs is not None:
+        lines += await op_phases.browser_phases(runs)
     return lines
+
+
+async def started_elsewhere(s, listed: list[str]) -> list[str] | str:
+    """Processes started during the run and still running that are not under a terminal (a daemon that forked away,
+    a job run with setsid), excluding Core's own helpers. A string when the scan was unavailable (A6/A9)."""
+    control, nonce = s.config.control_dir, f"aether-scan-{uuid.uuid4().hex}"
+    try:  # the nonce marks the scan's own wrapper processes, which are skipped
+        res = await run(s.env, f"sh -c {shlex.quote(_STARTED_SINCE)} {nonce} {shlex.quote(control)}", timeout_s=5)
+    except (OSError, RuntimeError, TimeoutError) as exc:
+        return f"unavailable ({type(exc).__name__})"
+    if res.code != 0 or res.stdout.strip() == "__NO_MARKER__":
+        return "unavailable (no start marker)" if res.code == 0 else f"unavailable (exit {res.code})"
+    known = {int(t.pid) for t in s.terminals._sessions.values() if t.pid}
+    known |= {int(line.split()[0]) for line in listed if line.split() and line.split()[0].isdecimal()}
+    rows = []
+    for line in res.stdout.splitlines():
+        pid, _, rest = line.partition(" ")
+        ppid, _, command = rest.partition(" ")
+        if not pid.isdecimal() or int(pid) in known or int(ppid or 0) in known:
+            continue
+        if control in command or nonce in command or not command.strip():
+            continue  # Core's own helpers (REPL server, MCP client, probes) run from the control directory
+        rows.append(f"{pid} {command.strip()[:200]}")
+    return rows
 
 
 async def observe(s) -> dict[str, Any]:
@@ -88,7 +125,9 @@ async def observe(s) -> dict[str, Any]:
         processes = await list_process_tree(s.env, [t.pid for t in s.terminals._sessions.values()], identities=identities)
     except OSError as exc:
         processes = [f"(process listing unavailable: {exc})"]
-    return {"files": files, "files_total": total, "processes": processes, "operations": await operations(s)}
+    elsewhere = await started_elsewhere(s, processes if isinstance(processes, list) else [])
+    return {"files": files, "files_total": total, "processes": processes, "started_elsewhere": elsewhere,
+            "operations": await operations(s)}
 
 
 def render(row: dict[str, Any]) -> str:
@@ -107,6 +146,13 @@ def render(row: dict[str, Any]) -> str:
     procs = row["processes"]
     running = ("Processes still running under your terminals:\n" + "\n".join(f"- {p}" for p in procs[:MAX_LISTED])
                if procs else "Processes still running under your terminals: none observed.")
+    others = row.get("started_elsewhere", [])
+    if isinstance(others, str):
+        running += f"\nOther processes started during this run: {others}."
+    else:
+        running += ("\nOther processes started during this run and still running:\n"
+                    + "\n".join(f"- {p}" for p in others[:MAX_LISTED]) if others else
+                    "\nOther processes started during this run and still running: none observed.")
     ops = row["operations"]
     pending = ("Operations not finished or not shown:\n" + "\n".join(f"- {o}" for o in ops)
                if ops else "Operations not finished or not shown: none.")

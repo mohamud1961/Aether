@@ -39,7 +39,8 @@ _SAVE_SCREENSHOT = (
     'cp --no-dereference -- "$src" "$1/shot_$2.tmp" && mv -- "$1/shot_$2.tmp" "$1/shot_$2.png"; fi; '
 )
 _LAUNCH = (
-    'cd "$1" || exit 4; echo $$ > "pid_$2"; command ln -s run "start_$2" 2>/dev/null || exit 0; cd /tmp; '
+    'cd "$1" || exit 4; echo $$ > "pid_$2"; printf "%s %s\\n" "$6" "${4:--}" > "meta_$2"; '
+    'command ln -s run "start_$2" 2>/dev/null || exit 0; cd /tmp; '
     'PYTHONPATH="$1${PYTHONPATH:+:$PYTHONPATH}" timeout -k 5 "$3" python3 "$1/code_$2.py" > "$1/out_$2" 2>&1; rc=$?; '
     + _SAVE_SCREENSHOT
     + 'echo "$rc" > "$1/done_$2.tmp"; mv -f "$1/done_$2.tmp" "$1/done_$2"'
@@ -53,6 +54,15 @@ _POLL = (
     'elif [ -z "$token" ]; then echo RUNNING; else echo GONE; fi'  # no token yet: the runner is starting
 )
 _REVOKE = f'cd "$1" || exit 4; command ln -s {operations.REVOKED} "start_$2" 2>/dev/null; readlink "start_$2"'
+# Adoption (A11): one line per run, "n|token|now|done|delivered tag|key screenshot". A run with no token was never
+# taken by its runner: it is revoked here ("now" says this call revoked it), so it can never run later.
+_RECORDS = (
+    'cd "$1" 2>/dev/null || exit 0; for f in code_*.py; do [ -e "$f" ] || continue; n=${f#code_}; n=${n%.py}; '
+    f'now=-; t=$(readlink "start_$n" 2>/dev/null); if [ -z "$t" ]; then command ln -s {operations.REVOKED} '
+    '"start_$n" 2>/dev/null && now=now; t=$(readlink "start_$n" 2>/dev/null); fi; d=-; [ -f "done_$n" ] && d=done; '
+    'dl=-; [ -e "delivered_$n" ] && dl="+$(cat "delivered_$n")"; echo "$n|$t|$now|$d|$dl|$(cat "meta_$n" 2>/dev/null)"; '
+    'done'
+)
 
 
 def key(args: dict[str, Any]) -> str:
@@ -68,6 +78,10 @@ class Runs:
         self.name, self.host, self.ops_dir = name, host, ops_dir
         self.seq = 0
         self.open: dict[int, dict[str, Any]] = {}
+        # Delivery authority across controllers (operations.seen), as for terminals, Python and MCP: a result counts
+        # as shown only when its tool-result token is in the continued conversation. Off (None): not recorded.
+        self.conversation: set[str] | None = None
+        self.delivery_tag = lambda: ""
 
     async def _sh(self, script: str, *args: str, timeout: float = 30, detach: bool = False) -> tuple[int, str, str]:
         argv = ["docker", "exec", *(["-d"] if detach else []), self.name, "sh", "-c", script, "core-browser-op", *args]
@@ -102,7 +116,7 @@ class Runs:
         if status != 0:
             raise OSError(f"browser code could not be copied in: {err.strip()[:200]}")
         status, _, err = await self._sh(_LAUNCH, self.ops_dir, str(n), str(max(1, int(life_s))),
-                                        screenshot or "", str(SCREENSHOT_MAX), detach=True)
+                                        screenshot or "", str(SCREENSHOT_MAX), call_key, detach=True)
         if status != 0:
             raise RuntimeError(f"browser run could not be launched: {err.strip()[:200]}")
         self.open[n]["launched"] = True
@@ -120,6 +134,47 @@ class Runs:
         else:
             self.open[n]["launched"] = True
         return token
+
+    async def deliver(self, n: int) -> None:
+        """Record that run ``n``'s result goes out in the current tool result (only with delivery tracking on)."""
+        if self.conversation is None:
+            return
+        status, _, err = await self._sh('printf %s "$3" > "$1/delivered_$2"', self.ops_dir, str(n), self.delivery_tag())
+        if status != 0:
+            raise RuntimeError(f"browser run #{n}: result delivery could not be recorded: {err.strip()[:200]}")
+
+    async def adopt(self) -> str:
+        """Take over this sidecar's runs after a controller restart: runs whose result the continued conversation has
+        not shown become open again (an identical call attaches to them); runs never taken are cancelled now. Returns
+        the model-facing note."""
+        status, out, err = await self._sh(_RECORDS, self.ops_dir)
+        if status != 0:
+            raise RuntimeError(f"browser run records could not be read: {err.strip()[:200]}")
+        cancelled, reopened = [], []
+        for line in out.splitlines():
+            fields = line.split("|", 5)
+            if len(fields) != 6 or not fields[0].isdecimal():
+                continue
+            n, token, now, done, delivered, meta = int(fields[0]), *fields[1:]
+            self.seq = max(self.seq, n)
+            if token == operations.REVOKED:
+                if now == "now":
+                    cancelled.append(n)
+                continue
+            if token != operations.RUN or (done == "done" and operations.seen(
+                    delivered[1:] if delivered.startswith("+") else None, self.conversation)):
+                continue
+            key, _, shot = meta.strip().partition(" ")
+            self.open[n] = {"key": key, "launched": True, "screenshot": None if shot in ("", "-") else shot}
+            reopened.append(n)
+        note = "[browser sidecar adopted from an earlier controller of this task"
+        if reopened:
+            note += "; results not shown yet: " + ", ".join(f"run #{n}" for n in reopened)
+        note += "]\n"
+        for n in cancelled:
+            note += (f"[browser run #{n} never started: its launch was lost before the runner took it, and it is now "
+                     "cancelled. Nothing from it ran.]\n")
+        return note
 
     async def collect(self, n: int, wait_s: float) -> str | None:
         """Wait up to ``wait_s`` for run ``n``. Its output and status once finished (it is then no longer open), a
@@ -139,6 +194,7 @@ class Runs:
                 if status != 0:
                     raise RuntimeError(f"browser run #{n} output could not be read: {err.strip()[:200]}")
                 if not self.open[n]["screenshot"]:
+                    await self.deliver(n)
                     del self.open[n]
                 return _clip(text) + ("" if exit_code == "0" else f"\n[browser command exit status {exit_code}]")
             if word == "GONE":

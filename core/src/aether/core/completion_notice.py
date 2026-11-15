@@ -1,4 +1,5 @@
-"""Completion notices: say when a background terminal command finished, without a model poll.
+"""Completion notices: say when a background operation finished, without a model poll (terminals; since 15 Nov
+also Python cells, MCP requests and browser runs: one promotion rule, A7).
 
 Off by default (``CoreConfig.completion_notices``). Adapted from Claude Code's background-shell notifications and the
 plan's "attach other relevant results already available" rule for selected waits: a command left running in a named
@@ -12,6 +13,7 @@ Core attaches the bounded output to the current tool packet instead. Each comman
 
 from __future__ import annotations
 
+import re
 import shlex
 import time
 
@@ -49,6 +51,40 @@ async def finished(terminals, seen: set[tuple[str, int]]) -> list[dict]:
     return found
 
 
+async def others_finished(s, seen: set[tuple[str, int]]) -> list[dict]:
+    """A7, one promotion rule across owners: Python cells, MCP requests and browser runs that finished since the last
+    look and whose result the model has not been shown. Read from each owner's own completion record; nothing is
+    collected or consumed here, so the owner still shows the result at its next use."""
+    found, q = [], shlex.quote
+    repl = getattr(s, "repl", None)
+    seq = getattr(repl, "pending", 0) if repl is not None and getattr(repl, "track_operations", False) else 0
+    if seq and ("python", seq) not in seen and not getattr(repl, "unconfirmed", False):
+        res = await run(repl._env, f"head -c 300 {q(f'{repl.base}/out/{seq}.done')} 2>/dev/null; true", timeout_s=10)
+        if res.code == 0 and res.stdout.strip():
+            status = re.search(r'"status":\s*"([a-z_]+)"', res.stdout)
+            found.append({"owner": "python", "sequence": seq, "line": f"[python cell #{seq} finished"
+                          + (f" ({status.group(1)})" if status else "") + "; its output is shown at your next python call]"})
+    mcp = getattr(s, "mcp", None)
+    for ident, op in sorted(getattr(mcp, "ops", {}).items()):
+        d = mcp.started.get(op.get("server"))
+        if not op.get("published") or d is None or (f"mcp:{op.get('server')}", ident) in seen:
+            continue
+        res = await run(mcp.env, f"[ -s {q(f'{d}/resp_{ident}.json')} ] && echo yes; true", timeout_s=10)
+        if res.stdout.strip() == "yes":
+            found.append({"owner": f"mcp:{op.get('server')}", "sequence": ident, "line":
+                          f"[MCP request #{ident} ({op.get('tool') or op.get('action')}) to {op.get('server')} answered; "
+                          "the answer is shown at your next mcp use]"})
+    runs = getattr(getattr(getattr(s, "browser", None), "sidecar", None), "runs", None)
+    for n, run_ in sorted(getattr(runs, "open", {}).items()):
+        if not run_.get("launched") or ("browser", n) in seen:
+            continue
+        status, out, _ = await runs._sh('cat "$1/done_$2" 2>/dev/null; true', runs.ops_dir, str(n), timeout=10)
+        if status == 0 and out.strip():
+            found.append({"owner": "browser", "sequence": n, "line": f"[browser run #{n} finished with exit "
+                          f"{out.strip()[:8]}; its result is shown at your next browser call]"})
+    return found
+
+
 async def before_model(s) -> str:
     """Notice lines for the tool result just produced (empty when nothing newly finished)."""
     seen = s.result.extras.setdefault("completion_notices_seen", [])
@@ -81,6 +117,16 @@ async def before_model(s) -> str:
             lines.append(f"[terminal {name}: command #{seq} finished with exit {row['exit']}; collected output]\n{output}")
         else:
             lines.append(LINE.format(name=name, seq=seq, exit=row["exit"]))
+        seen.append({**row, "step": s.result.steps})
+        s.trace("completion_notice", **row, step=s.result.steps)
+    others = []  # the result-delivery arm alone keeps its terminal-only behaviour
+    if getattr(s.config, "completion_notices", False):
+        try:
+            others = await others_finished(s, {(row["owner"], row["sequence"]) for row in seen})
+        except Exception as exc:  # substrate failure: no notice, recorded honestly
+            s.trace("completion_notice_error", error=f"{type(exc).__name__}: {exc}")
+    for row in others:
+        lines.append(row.pop("line"))
         seen.append({**row, "step": s.result.steps})
         s.trace("completion_notice", **row, step=s.result.steps)
     return "".join("\n" + line for line in lines)

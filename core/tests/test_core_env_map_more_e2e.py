@@ -5,7 +5,6 @@ import json
 import os
 import shutil
 import sqlite3
-import subprocess
 
 import pytest
 
@@ -13,7 +12,7 @@ from aether.core.env_map_more import parse, task_paths
 from aether.core.loop import CoreConfig, Trace, run_agent
 from aether.core.provider import ChatProvider
 from tests.core_fakes import LocalEnv, ScriptedClient, call
-from tests.test_core_env_map_e2e import GIT_ENV, git, tree_digest
+from tests.test_core_env_map_e2e import git, tree_digest
 
 linux = pytest.mark.skipif(not os.path.exists("/proc/self/stat") or shutil.which("git") is None,
                            reason="native Linux git qualification")

@@ -35,8 +35,6 @@ BROWSER_ENV = "AETHER_CORE_BROWSER"
 BROWSER_IMAGE = "aether-browser:1"
 GRACE_S = 120
 SCREENSHOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}\.png")
-class InvalidScreenshot(ValueError):
-    """The sidecar confirmed that this run did not produce a usable image."""
 
 _PUBLISH_INPUT = """import ctypes, errno, os, shutil, sys
 stage, target = sys.argv[1:]
@@ -114,14 +112,23 @@ class InvalidScreenshot(ValueError):
 
 
 class Sidecar:
-    def __init__(self, cid: str, host: HostRun) -> None:
-        self.cid, self.host, self.name = cid, host, f"aether-browser-{uuid.uuid4().hex[:12]}"
-        self.started = False
+    def __init__(self, cid: str, host: HostRun, name: str | None = None) -> None:
+        self.cid, self.host, self.name = cid, host, name or f"aether-browser-{uuid.uuid4().hex[:12]}"
+        self.started = name is not None  # an adopted sidecar is already running
         self.runs = browser_ops.Runs(self.name, host)
+
+    @staticmethod
+    async def find(cid: str, host: HostRun) -> str | None:
+        """The running sidecar an earlier controller started for task container ``cid``, if exactly one."""
+        code, out, _ = await host(["docker", "ps", "--filter", f"label=aether.browser.cid={cid}",
+                                   "--format", "{{.Names}}"], 15)
+        names = out.split()
+        return names[0] if code == 0 and len(names) == 1 else None
 
     async def start(self, life_s: float) -> None:
         code, _, err = await self.host(
             ["docker", "run", "-d", "--rm", "--name", self.name, "--label", "aether.browser=1",
+             "--label", f"aether.browser.cid={self.cid}",
              "--network", f"container:{self.cid}", "--memory", "2g", "--cpus", "1", "--shm-size", "1g",
              "--entrypoint", "sleep", BROWSER_IMAGE, str(int(life_s + GRACE_S))], 300)
         if code != 0:
@@ -235,11 +242,18 @@ def compose_factory(project: str) -> Factory:
 
 
 class BrowserSession:
-    def __init__(self, factory: Factory, env: Environment, host: HostRun = host_run, persistent: bool = False) -> None:
+    def __init__(self, factory: Factory, env: Environment, host: HostRun = host_run, persistent: bool = False,
+                 page_facts: bool = False) -> None:
         self.factory, self.env, self.host, self.persistent = factory, env, host, persistent
+        self.page_facts = page_facts  # C3: failed requests, dialogs, downloads in the state line (session mode)
         self.installed = False
         self.sidecar: Sidecar | None = None
         self.image: tuple[str, str] | None = None
+        # Across controller restarts (A11, A13): adopt the task's running sidecar and track result delivery. Set by
+        # the loop with terminal_events; off by default.
+        self.adopt = False
+        self.conversation: set[str] | None = None
+        self.delivery_tag = lambda: ""
 
     async def use(self, args: dict[str, Any], remaining_s: float) -> str:
         self.image = None
@@ -247,18 +261,25 @@ class BrowserSession:
             screenshot = args.get("screenshot")
             if screenshot is not None and (not SCREENSHOT_NAME.fullmatch(screenshot) or not images.available()):
                 raise ValueError("screenshot requires a PNG basename and image support")
+            adopted = ""
             if self.sidecar is None:
-                self.sidecar = Sidecar(await self.factory(self.env), self.host)
-                await self.sidecar.start(remaining_s)
+                cid = await self.factory(self.env)
+                name = await Sidecar.find(cid, self.host) if self.adopt else None
+                self.sidecar = Sidecar(cid, self.host, name)
+                self.sidecar.runs.conversation, self.sidecar.runs.delivery_tag = self.conversation, self.delivery_tag
+                if name:
+                    adopted = await self.sidecar.runs.adopt()
+                else:
+                    await self.sidecar.start(remaining_s)
             car = self.sidecar
             if not car.started:
                 raise RuntimeError("sidecar startup was unconfirmed")
             if self.persistent and not self.installed:
-                await car.runs.install("aether_browser", browser_session_src.SOURCE)
+                await car.runs.install("aether_browser", browser_session_src.source(self.page_facts))
                 self.installed = True
             wait = max(1.0, min(float(args.get("wait_s") or 120), 600.0, max(1.0, remaining_s - 10)))
             call_key = browser_ops.key(args)
-            earlier = await self._settle(car.runs, call_key)
+            earlier = adopted + await self._settle(car.runs, call_key)
             same = next((n for n, run in car.runs.open.items() if run["key"] == call_key), None)
             if same is not None:
                 # A retry of code already running and not yet shown: attach to it, never run it twice.
@@ -291,6 +312,7 @@ class BrowserSession:
                 except (OSError, RuntimeError, ValueError) as error:
                     return (earlier + head + f"[browser screenshot unavailable: {error}. "
                             "Repeat this call to collect the result from the existing run.]")
+                await car.runs.deliver(same)
                 del car.runs.open[same]
         except Exception as exc:
             return f"error: browser unavailable ({type(exc).__name__}: {str(exc)[:300]})"

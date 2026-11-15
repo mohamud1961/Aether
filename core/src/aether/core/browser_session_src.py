@@ -16,8 +16,17 @@ for that page. A full navigation can change the document while keeping the same 
 
 Records, in ``HOME`` (``/tmp/.aether-browser``): ``profile/`` (Chromium's), ``chrome.pid``, ``snap_<n>.txt`` every
 snapshot shown, with its page and URL, ``last_<page>.txt`` the latest one per page. When the call ends, one line of page
-state is printed: open tabs and the current page's title and URL, and any console errors during the call.
+state is printed: open tabs and the current page's title and URL, and any console errors during the call. With page
+facts (C3, AETHER_CORE_BROWSER_PAGE_FACTS=on, ``source(page_facts=True)``) it also lists the call's failed requests
+(network failures and HTTP status >= 400), dialogs and downloads. All are recorded passively: dialogs through a
+separate DevTools session, because a Playwright ``dialog`` listener would stop Playwright dismissing them itself.
 """
+
+
+def source(page_facts: bool = False) -> str:
+    """The module text, with page facts (C3) switched on or off."""
+    return SOURCE.replace("_PAGE_FACTS = False", f"_PAGE_FACTS = {bool(page_facts)}", 1)
+
 
 SOURCE = r'''
 """One browser kept open for the whole task. Use page() to get it; see its docstrings."""
@@ -26,7 +35,9 @@ import atexit, glob, json, os, re, signal, subprocess, sys, time
 from playwright.sync_api import sync_playwright
 
 HOME = os.environ.get("AETHER_BROWSER_HOME", "/tmp/.aether-browser")
-_S = {"pw": None, "browser": None, "page": None, "errors": [], "restarted": False}
+_PAGE_FACTS = False
+_S = {"pw": None, "browser": None, "page": None, "errors": [], "restarted": False, "failed": [], "dialogs": [],
+      "downloads": [], "devtools": []}
 _REF_LINE = re.compile(r"^\s*- (.*?)\s*\[ref=([a-z0-9]+)\]")
 _NOISE = re.compile(r"\s*\[(?:ref|active|cursor|checked|expanded|selected|level|disabled|pressed)[^\]]*\]")
 
@@ -92,6 +103,27 @@ def _document(page):
         cdp.detach()
 
 
+def _listed(label, items):
+    more = len(items) - 5
+    return f"; {label} during this call: " + "; ".join(items[:5]) + (f" (+{more} more)" if more > 0 else "")
+
+
+def _watch(page):
+    """C3: record the page's failed requests, dialogs and downloads without changing how any is handled."""
+    page.on("requestfailed", lambda r: _S["failed"].append(f"{r.method} {r.url[:150]} ({r.failure})"))
+    page.on("response", lambda r: r.status >= 400 and _S["failed"].append(
+        f"HTTP {r.status} {r.request.method} {r.url[:150]}"))
+    page.on("download", lambda d: _S["downloads"].append(f"{d.suggested_filename} from {d.url[:150]}"))
+    try:
+        devtools = page.context.new_cdp_session(page)
+        devtools.send("Page.enable")
+        devtools.on("Page.javascriptDialogOpening", lambda e: _S["dialogs"].append(
+            f"{e.get('type')} {str(e.get('message', ''))[:150]!r}"))
+        _S["devtools"].append(devtools)
+    except Exception as exc:
+        _S["dialogs"].append(f"(dialogs not observable: {type(exc).__name__})")
+
+
 def _finish():
     try:
         browser, page = _S["browser"], _S["page"]
@@ -101,9 +133,11 @@ def _finish():
             where = f"{current.title()!r} {current.url}" if current is not None else "none"
             line = f"[browser state: {len(pages)} tab(s) open; current page {where}"
             if _S["errors"]:
-                shown = "; ".join(_S["errors"][:5])
-                more = len(_S["errors"]) - 5
-                line += f"; console errors during this call: {shown}" + (f" (+{more} more)" if more > 0 else "")
+                line += _listed("console errors", _S["errors"])
+            if _PAGE_FACTS:
+                for label, key in (("failed requests", "failed"), ("dialogs", "dialogs"), ("downloads", "downloads")):
+                    if _S[key]:
+                        line += _listed(label, _S[key])
             print(line + "]", flush=True)
     except Exception as exc:
         print(f"[browser state unavailable: {type(exc).__name__}]", flush=True)
@@ -138,6 +172,8 @@ def page(tab=None):
     if chosen is not _S["page"]:
         chosen.on("console", lambda m: m.type == "error" and _S["errors"].append(m.text[:200]))
         chosen.on("pageerror", lambda e: _S["errors"].append(str(e)[:200]))
+        if _PAGE_FACTS:
+            _watch(chosen)
         try:
             chosen.aria_snapshot(mode="ai")  # binds aria-ref locators for this connection
         except Exception:

@@ -49,10 +49,10 @@ def test_first_finish_returns_delivered_state_facts_once(tmp_path):
     assert "Changed files since the task started (2 current files measured):" in shown
     assert "answer.txt: 3 bytes" in shown and "notes.txt: 3 bytes" in shown and "kept.txt" not in shown
     assert "sleep 30" in shown  # the process still running
-    assert "terminal server: command #1 still running" in shown
+    assert "terminal server: command #1 started and still running; no result yet" in shown
     assert "should" not in shown.lower() and "consider" not in shown.lower()  # facts, no advice
     (row,) = [r for r in rows if r["event"] == "finish_facts"]
-    assert row["operations"] == ["terminal server: command #1 still running"]
+    assert row["operations"] == ["terminal server: command #1 started and still running; no result yet"]
     assert not [r for r in rows if r["event"] == "finish_pending_terminal_observation"]  # one hold, not two
     assert result.extras["switches"]["finish_facts"] is True
 
@@ -71,3 +71,17 @@ def test_finish_observes_a_completion_that_arrived_without_a_terminal_poll(tmp_p
     (observation,) = [row for row in rows if row["event"] == "finish_facts"]
     assert observation["operations"] == ["terminal server: command #1 completed with exit 7; result not shown"]
     assert "still running" not in observation["operations"][0]
+
+
+def test_a_daemon_that_left_the_terminal_tree_is_still_reported(tmp_path):
+    """A6/A9: a service that double-forks (as `service x start` does) is reparented out of the terminal's process tree.
+    It was started during the run and still runs at finish, so the observation names it."""
+    result, client, rows = run(tmp_path, facts=True, command="(exec -a aether-daemon-probe sleep 37 &) ; sleep 30")
+    assert result.status == "finished"
+    (row,) = [r for r in rows if r["event"] == "finish_facts"]
+    assert any("aether-daemon-probe" in p or "sleep 37" in p for p in row["started_elsewhere"]), row["started_elsewhere"]
+    assert not any("sleep 30" in p for p in row["started_elsewhere"])  # inside a terminal: listed there, not twice
+    # Known-bad: the terminal-tree listing alone (the observation before A6) does not see the daemon.
+    assert not any("aether-daemon-probe" in p or "sleep 37" in p for p in row["processes"]), row["processes"]
+    shown = [m for m in client.requests[4]["messages"] if m["role"] == "tool"][-1]["content"]
+    assert "Other processes started during this run and still running:" in shown

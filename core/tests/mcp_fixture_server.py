@@ -2,14 +2,14 @@
 
 Tools: ``count`` (per-session counter, proves the session persists), ``shot`` (returns a PNG image item),
 ``fail`` (returns isError), ``effect`` (appends one byte to ``path`` at once, then answers after ``delay`` seconds: an
-external effect a test can count). Run as ``python mcp_fixture_server.py sse|http PORT`` or ``... stdio``.
+external effect a test can count; a repeated idempotency key in ``params._meta`` returns without a second effect). Run as ``python mcp_fixture_server.py sse|http PORT`` or ``... stdio``.
 """
 
 import base64
 import json
+import os
 import queue
 import sys
-import threading
 import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -43,8 +43,17 @@ def handle(message, state):
                                                                       "mimeType": "image/png"}]}
         elif name == "effect":
             arguments = message["params"].get("arguments") or {}
+            # Honours an idempotency key in params._meta durably (a key file beside the effect), as a payments-style
+            # server does: a repeated key returns the first answer without a second effect.
+            key = (message["params"].get("_meta") or {}).get("aether/idempotency-key")
+            keys = arguments["path"] + ".keys"
+            if key and os.path.exists(keys) and key in open(keys).read().split():
+                return {"jsonrpc": "2.0", "id": ident, "result": {"content": [{"type": "text", "text": "effect-done"}]}}
             with open(arguments["path"], "a") as handle:
                 handle.write("x")
+            if key:
+                with open(keys, "a") as handle:
+                    handle.write(key + "\n")
             time.sleep(float(arguments.get("delay", 0)))
             result = {"content": [{"type": "text", "text": "effect-done"}]}
         elif name == "fail":

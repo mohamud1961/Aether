@@ -23,6 +23,8 @@ from . import operations
 from .env import alive_test, run
 from .terminal_adopt import _BIRTH
 
+IDEMPOTENCY_META = "aether/idempotency-key"  # the params._meta field an MCP tool call carries its key in (A14)
+
 
 def pointer(root: str, name: str) -> str:
     safe = re.sub(r"[^A-Za-z0-9_-]", "_", name)[:40] + "-" + hashlib.sha256(name.encode()).hexdigest()[:8]
@@ -32,6 +34,25 @@ def pointer(root: str, name: str) -> str:
 def record_script(root: str, name: str, d: str) -> str:
     q, path = shlex.quote, pointer(root, name)
     return f"printf %s {q(d)} > {q(path + '.tmp')} && mv {q(path + '.tmp')} {q(path)}"
+
+
+async def same_process(env, owner: str) -> bool | None:
+    """Whether the daemon an ``owner`` record names (pid and start time) is the same live process: True, False (it
+    ended, or its pid now belongs to another process), or None (the record or the check could not be read)."""
+    fields = owner.split()
+    if len(fields) != 2 or not fields[0].isdecimal():
+        return None
+    pid = int(fields[0])
+    now = await run(env, f"{alive_test(pid)} && {{ {_BIRTH.format(pid=pid)}; }} || echo __DEAD__", timeout_s=10)
+    if now.code != 0:
+        return None
+    return now.stdout.strip() == fields[1]
+
+
+async def client_alive(env, d: str) -> bool | None:
+    """``same_process`` for the client daemon of session directory ``d``."""
+    got = await run(env, f"cat {shlex.quote(d + '/owner')} 2>/dev/null; true", timeout_s=10)
+    return None if got.code != 0 else await same_process(env, got.stdout)
 
 
 async def adopt(mcp, name: str) -> str | None:
@@ -44,12 +65,7 @@ async def adopt(mcp, name: str) -> str | None:
     state = await run(mcp.env, f"cd {q(d)} 2>/dev/null || exit 4; cat owner 2>/dev/null; echo __SEP__; "
                                "test -f ready && echo ready; echo __SEP__; ls", timeout_s=10)
     owner, ready, listing = (state.stdout.split("__SEP__\n") + ["", "", ""])[:3]
-    fields = owner.split()
-    if state.code != 0 or ready.strip() != "ready" or len(fields) != 2 or not fields[0].isdecimal():
-        return None
-    pid = int(fields[0])
-    now = await run(mcp.env, f"{alive_test(pid)} && {{ {_BIRTH.format(pid=pid)}; }} || echo __DEAD__", timeout_s=10)
-    if now.stdout.strip() != fields[1]:
+    if state.code != 0 or ready.strip() != "ready" or await same_process(mcp.env, owner) is not True:
         return None
     sent = sorted(int(m.group(1)) for m in re.finditer(r"^req_(\d+)\.json$", listing, re.M))
     staged = sorted(int(m.group(1)) for m in re.finditer(r"^req\.tmp\.(\d+)$", listing, re.M))
@@ -71,5 +87,6 @@ async def adopt(mcp, name: str) -> str | None:
         action = "list" if request.get("method") == "tools/list" else "call"
         tool = params.get("name") if action == "call" else None
         key = json.dumps([action, tool, params.get("arguments") or {}], sort_keys=True)
-        mcp.ops[ident] = {"server": name, "key": key, "tool": tool, "action": action, "published": True}
+        kid = (params.get("_meta") or {}).get(IDEMPOTENCY_META)
+        mcp.ops[ident] = {"server": name, "key": key, "tool": tool, "action": action, "published": True, "kid": kid}
     return d
