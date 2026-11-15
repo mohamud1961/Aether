@@ -55,6 +55,8 @@ async def run_agent(
     )
     if not math.isfinite(timeout_s) or timeout_s <= 0:
         raise ValueError("timeout_s must be finite and positive")
+    if getattr(provider, "native_compaction", None) is not None and config.context != "clm":
+        raise ValueError("native compaction requires the CLM context")
     if resume is not None and isinstance(resume, ClmContext) != (config.context == "clm"):
         raise ValueError("resume must match the context: a ClmContext for clm, a message list otherwise")
     s = _Session(

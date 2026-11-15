@@ -200,8 +200,11 @@ class ResponsesProvider(ChatProvider):
                     item = _dump(event.item)
                     if item.get("type") == "reasoning":
                         reasoning.append(item)
-                    elif str(item.get("type", "")).startswith("compaction"):
-                        turn.compaction_items.append(item)
+                    elif item.get("type") == "compaction" and self.native_compaction is not None:
+                        encrypted = item.get("encrypted_content")
+                        if not isinstance(encrypted, str) or not encrypted:
+                            raise IncompleteStream("provider returned an unusable compaction item")
+                        turn.compaction_items[:] = [item]
                     elif item.get("type") == "function_call":
                         turn.streamed_calls[len(turn.streamed_calls)] = {
                             "id": item.get("call_id", ""),

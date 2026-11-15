@@ -67,6 +67,9 @@ class ClmContext(ClmMirror):
         default_factory=list
     )  # every appended message as shown; edits never touch it
     _append_message_sha256: list[str] = field(default_factory=list, init=False, repr=False)
+
+    # Provider-owned opaque prefix. The editable mirror may replace notes or old turns.
+    _native_compaction: list[dict[str, Any]] = field(default_factory=list, init=False, repr=False)
     stats: ClmStats = field(default_factory=ClmStats)
     chars_per_token: float = CHARS_PER_TOKEN
     _armed: set[float] = field(default_factory=set)
@@ -120,10 +123,13 @@ class ClmContext(ClmMirror):
         """Pinned + editable; reasoning is replayed per ``settings.replay_reasoning``."""
         keep = {id(m) for m in self._replayed()}
         out = list(self.pinned)
-        compacted = [i for i, m in enumerate(self.editable) if m.get("compaction")]
-        for msg in self.editable[compacted[-1]:] if compacted else self.editable:
-            if id(msg) not in keep and "reasoning_content" in msg:
-                msg = {k: v for k, v in msg.items() if k != "reasoning_content"}
+        if self._native_compaction:
+            out.append({"role": "assistant", "compaction": self._native_compaction})
+        for msg in self.editable:
+            include_reasoning = id(msg) in keep
+            if "compaction" in msg or ("reasoning_content" in msg and not include_reasoning):
+                msg = {k: v for k, v in msg.items()
+                       if k != "compaction" and (k != "reasoning_content" or include_reasoning)}
             out.append(msg)
         return images.limit(out)
 
@@ -226,7 +232,12 @@ class ClmContext(ClmMirror):
             )
 
     def append(self, *messages: dict[str, Any]) -> None:
-        self.editable.extend(messages)
+        for message in messages:
+            if message.get("role") == "assistant" and message.get("compaction"):
+                self._native_compaction = deepcopy(message["compaction"])
+                self.editable.clear()
+                self._reasoning.clear()
+            self.editable.append(message)
         copied = deepcopy(messages)
         self.raw.extend(copied)
         if self.settings.attest_original_history:

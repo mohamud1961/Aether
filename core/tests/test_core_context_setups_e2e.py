@@ -39,11 +39,13 @@ def native(client, tmp_path, threshold=20_000):
 def run(tmp_path, prov, client, rehydrate_on=False):
     work = tmp_path / "w"
     work.mkdir(parents=True, exist_ok=True)
+    control = tmp_path / "ctl"
+    clm = ClmSettings(replay_reasoning="all", mirror_path=str(control / "live.txt"),
+                      history_path=str(control / "history.txt"))
     result = asyncio.run(run_agent(
         env=LocalEnv(work), task="write notes.txt then finish", workdir=str(work), provider=prov,
         timeout_s=60, trace=Trace(tmp_path / "trace.jsonl"),
-        config=CoreConfig(context="clm", clm=ClmSettings(replay_reasoning="all"), rehydrate=rehydrate_on,
-                          control_dir=str(tmp_path / "ctl")),
+        config=CoreConfig(context="clm", clm=clm, rehydrate=rehydrate_on, control_dir=str(control)),
     ))
     return work, result
 
@@ -71,8 +73,8 @@ def test_request_asks_for_compaction_only_when_switched_on(tmp_path):
     stripped = {k: v for k, v in on.requests[0].items() if k not in ("extra_body", "prompt_cache_key")}
     same = {k: v for k, v in off.requests[0].items() if k != "prompt_cache_key"}
     # identical apart from the switch (the two runs differ only in their working directory name)
-    assert json.dumps(stripped, sort_keys=True).replace("/on/w", "/X/w") == \
-        json.dumps(same, sort_keys=True).replace("/off/w", "/X/w")
+    assert json.dumps(stripped, sort_keys=True).replace("/on/", "/X/") == \
+        json.dumps(same, sort_keys=True).replace("/off/", "/X/")
 
 
 def test_misconfiguration_stops_rather_than_falling_back(tmp_path):
@@ -100,16 +102,15 @@ def test_compaction_item_is_replayed_and_nothing_older_is_sent(tmp_path):
 
 
 def test_known_bad_without_the_cut_the_older_call_is_resent(tmp_path, monkeypatch):
-    def unpruned(self):
-        keep = {id(m) for m in self._replayed()}
-        out = list(self.pinned)
-        for msg in self.editable:
-            if id(msg) not in keep and "reasoning_content" in msg:
-                msg = {k: v for k, v in msg.items() if k != "reasoning_content"}
-            out.append(msg)
-        return out
+    append = clm_mod.ClmContext.append
 
-    monkeypatch.setattr(clm_mod.ClmContext, "request", unpruned)
+    def keep_folded_turns(self, *messages):
+        old = list(self.editable)
+        append(self, *messages)
+        if any(m.get("compaction") for m in messages):
+            self.editable[:0] = old
+
+    monkeypatch.setattr(clm_mod.ClmContext, "append", keep_folded_turns)
     client = ResponsesClient(script())
     run(tmp_path, native(client, tmp_path / "p"), client)
     assert ("function_call", "c1") in ids(client.requests[2])
@@ -168,3 +169,38 @@ def test_rehydration_after_cores_own_checkpoint(tmp_path, on):
     if on:
         assert "plan.txt (3 bytes)\\nv1" in after
         assert any(r["event"] == "rehydrate" and r["cause"] == "checkpoint" and r["shown"] == 1 for r in rows)
+
+
+
+def test_a_mirror_edit_cannot_drop_the_provider_compaction_anchor(tmp_path):
+    from json import loads
+
+    tape = script()
+    tape[2:] = [
+        turn_events(3, call=("write_file", {"path": str(tmp_path / "ctl/live.txt"),
+                                           "content": "## Notes\nKeep the final draft.\n"}, "c3")),
+        turn_events(4, call=("read_history", {"message_id": 0}, "c4")),
+        turn_events(5, call=("finish", {"summary": "done"}, "c5")),
+    ]
+    client = ResponsesClient(tape)
+    work, result = run(tmp_path, native(client, tmp_path / "p"), client)
+    assert result.status == "finished" and (work / "notes.txt").read_text() == "draft one\nfinal\n"
+    events = [loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
+    assert any(e["event"] == "context_edit" and e["accepted"] for e in events)
+    assert ("compaction", "cmp2") in ids(client.requests[3])
+    assert ("function_call", "c1") not in ids(client.requests[3])
+    outputs = [i for i in client.requests[4]["input"] if i.get("call_id") == "c4"]
+    assert any("draft one" in i.get("output", "") for i in outputs)
+
+
+
+def test_missing_opaque_content_does_not_discard_history_or_dispatch_the_incomplete_turn(tmp_path):
+    tape = script()
+    bad = turn_events(2, call=("terminal", {"input": "echo incomplete > wrong-action"}, "bad"))
+    bad.insert(1, ev("response.output_item.done", item=item(type="compaction", id="invalid", encrypted_content="")))
+    client = ResponsesClient([tape[0], bad, tape[1], tape[2]])
+    work, result = run(tmp_path, native(client, tmp_path / "p"), client)
+    assert result.status == "finished"
+    assert not (work / "wrong-action").exists()
+    assert ("function_call", "c1") in ids(client.requests[2])
+    assert ("compaction", "cmp2") in ids(client.requests[3])
