@@ -159,7 +159,15 @@ class Repl:
 
     async def run(self, code: str = "", *, wait_s: float = 60.0, interrupt: bool = False) -> str:
         note, self.adopted_note = self.adopted_note, ""
-        return note + await self._run(code, wait_s=wait_s, interrupt=interrupt)
+        try:
+            return note + await self._run(code, wait_s=wait_s, interrupt=interrupt)
+        except BaseException:
+            # A lost reply after the cell was taken: the model never saw its outcome, so the next call shows it
+            # before running any new code (an identical re-send would otherwise run the cell twice; every-exec sweep,
+            # 15 Nov: 3/119 kill points on the first poll).
+            if self.track_operations and self.pending:
+                self.unseen = True
+            raise
 
     async def _run(
         self, code: str = "", *, wait_s: float = 60.0, interrupt: bool = False
