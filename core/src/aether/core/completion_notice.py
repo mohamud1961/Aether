@@ -6,7 +6,7 @@ plan's "attach other relevant results already available" rule for selected waits
 terminal finishes while the model works elsewhere; without a notice the model learns this only by polling or waiting.
 
 At the end of a model tool packet, Core checks the shell's own completion receipt (``done_<seq>``) for every terminal with an
-outstanding command and appends one line per newly finished command: its terminal, sequence and exit. The output is
+outstanding command and appends one line per newly finished command: its terminal, sequence and exit. The output
 normally remains available through the terminal or ``terminal_wait``. With result delivery enabled,
 Core attaches the bounded output to the current tool packet instead. Each command is noticed at most once. A failed check adds nothing and is recorded in the trace.
 """
@@ -73,15 +73,17 @@ async def others_finished(s, seen: set[tuple[str, int]]) -> list[dict]:
         if res.stdout.strip() == "yes":
             found.append({"owner": f"mcp:{op.get('server')}", "sequence": ident, "line":
                           f"[MCP request #{ident} ({op.get('tool') or op.get('action')}) to {op.get('server')} answered; "
-                          "the answer is shown at your next mcp use]"})
+                          "the answer is shown at your next mcp use of this server]"})
     runs = getattr(getattr(getattr(s, "browser", None), "sidecar", None), "runs", None)
     for n, run_ in sorted(getattr(runs, "open", {}).items()):
         if not run_.get("launched") or ("browser", n) in seen:
             continue
         status, out, _ = await runs._sh('cat "$1/done_$2" 2>/dev/null; true', runs.ops_dir, str(n), timeout=10)
         if status == 0 and out.strip():
-            found.append({"owner": "browser", "sequence": n, "line": f"[browser run #{n} finished with exit "
-                          f"{out.strip()[:8]}; its result is shown at your next browser call]"})
+            collection = ("repeat that browser call to collect its screenshot" if run_.get("screenshot")
+                          else "its result is shown at your next browser call")
+            found.append({"owner": "browser", "sequence": n,
+                          "line": f"[browser run #{n} finished with exit {out.strip()[:8]}; {collection}]"})
     return found
 
 

@@ -7,6 +7,7 @@ terminal result says nothing about the cell.
 """
 
 import asyncio
+from pathlib import Path
 import shutil
 
 import pytest
@@ -53,3 +54,64 @@ def test_known_bad_without_notices_the_terminal_result_is_silent(tmp_path):
     result, tools = scenario(tmp_path, notices=False)
     assert result.status == "finished", result.error
     assert "python cell" not in tools[1] and "cell-done" in tools[2]
+
+
+def test_browser_notice_names_how_to_collect_a_pending_screenshot(tmp_path, monkeypatch):
+    import os
+
+    if not os.path.exists("/proc/self/stat"):
+        pytest.skip("needs the Linux browser runner")
+    from aether.core import browser
+    from tests.test_core_browser_operation_faults_e2e import local_host
+
+    if not browser.images.available():
+        pytest.skip("needs image support")
+    work, ops = tmp_path / "work", tmp_path / "ops"
+    work.mkdir()
+    effect = work / "effect"
+    screenshot = f"{tmp_path.name}.png"
+    output = f"/tmp/{screenshot}"
+    original = browser.BrowserSession
+
+    def with_local_transport(factory, env, **kw):
+        session = original(factory, env, host=local_host, **kw)
+        car = browser.Sidecar("c" * 64, local_host)
+        car.started, car.runs.ops_dir = True, str(ops)
+        session.sidecar = car
+        return session
+
+    monkeypatch.setattr(browser, "BrowserSession", with_local_transport)
+    args = {
+        "code": f"import time\nfrom PIL import Image\ntime.sleep(2)\n"
+                f"open({str(effect)!r}, 'a').write('x')\n"
+                f"Image.new('RGB', (24, 24), 'green').save({output!r})\nprint('browser-effect-complete')",
+        "screenshot": screenshot,
+        "wait_s": 1,
+    }
+    client = ScriptedClient([
+        call("browser", args, "start"),
+        call("terminal", {"input": f"while [ ! -s '{ops}/done_1' ]; do sleep 0.1; done; echo independently-observed",
+                          "wait_s": 10}, "work"),
+        call("browser", {"code": "print('different browser work')"}, "other"),
+        call("browser", {**args, "wait_s": 4}, "collect"),
+        call("finish", {"summary": "Done."}, "finish"),
+    ])
+
+    async def factory(_):
+        return "c" * 64
+
+    try:
+        result = asyncio.run(run_agent(
+            env=LocalEnv(work), task="Observe the result of the browser fixture.", workdir=str(work),
+            provider=ChatProvider(client, model="offline", params={}), trace=Trace(tmp_path / "trace.jsonl"),
+            timeout_s=60, config=CoreConfig(browser=factory, images=True, completion_notices=True,
+                                           control_dir=str(tmp_path / "ctl")),
+        ))
+        assert result.status == "finished" and len(client.requests) == 5
+        seen = [m["content"] for m in client.requests[-1]["messages"] if m["role"] == "tool"]
+        assert "still running" in seen[0] and "repeat that browser call to collect its screenshot" in seen[1]
+        assert "different browser work" in seen[2] and "browser-effect-complete" not in seen[2]
+        assert "browser-effect-complete" in seen[3] and effect.read_text() == "x"
+        assert f"browser screenshot {screenshot}" in seen[3]
+    finally:
+        Path(output).unlink(missing_ok=True)
