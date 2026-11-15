@@ -74,3 +74,22 @@ def test_stock_terminal_identifies_effects_by_call_id_alone(tmp_path):
     assert breaks == []
     assert all(r["fields"]["delivery"] is None for r in receipts if r["kind"] == "effect")
     assert not list(control.rglob("delivered_*"))
+
+
+def test_missing_usage_unidentified_result_and_absent_grade_never_form_a_complete_chain(tmp_path):
+    trial, _ = run_trial(tmp_path)
+    calls_path = trial / "agent" / "core_calls.jsonl"
+    calls = [json.loads(line) for line in calls_path.read_text().splitlines()]
+    calls_path.write_text("".join(json.dumps(row) + "\n" for row in calls if row.get("kind") != "end"))
+    trace_path = trial / "agent" / "core_trace.jsonl"
+    trace = [json.loads(line) for line in trace_path.read_text().splitlines()]
+    for row in trace:
+        if row.get("event") == "tool" and row.get("name") == "terminal":
+            row.pop("call_id")
+            break
+    trace_path.write_text("".join(json.dumps(row) + "\n" for row in trace))
+    (trial / "result.json").write_text(json.dumps({"verifier_result": {"rewards": {}}}))
+    _, breaks = build(str(trial))
+    assert any("spend receipt" in problem for problem in breaks), breaks
+    assert any("unidentified" in problem for problem in breaks), breaks
+    assert any("grade" in problem for problem in breaks), breaks
