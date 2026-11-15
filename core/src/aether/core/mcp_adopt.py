@@ -58,14 +58,28 @@ async def client_alive(env, d: str) -> bool | None:
 async def adopt(mcp, name: str) -> str | None:
     """The adopted session directory for server ``name`` (requests restored into ``mcp.ops``), or None."""
     q = shlex.quote
-    got = await run(mcp.env, f"cat {q(pointer(mcp.root, name))} 2>/dev/null; true", timeout_s=10)
-    d = got.stdout.strip()
+    # Every read prints a marker for each real outcome; no reply is never "nothing to adopt" (T2 adoption sweep,
+    # 15 Nov: read that way, a fresh client was started and the identical retry ran the tool twice).
+    got = await operations.observe(mcp.env, f"echo __PTR__; cat {q(pointer(mcp.root, name))} 2>/dev/null; true",
+                                   ("__PTR__",), f"MCP server {name}'s session pointer")
+    d = got.partition("__PTR__\n")[2].strip()
     if not d.startswith(mcp.root + "/session-") or "\n" in d:
         return None
-    state = await run(mcp.env, f"cd {q(d)} 2>/dev/null || exit 4; cat owner 2>/dev/null; echo __SEP__; "
-                               "test -f ready && echo ready; echo __SEP__; ls", timeout_s=10)
-    owner, ready, listing = (state.stdout.split("__SEP__\n") + ["", "", ""])[:3]
-    if state.code != 0 or ready.strip() != "ready" or await same_process(mcp.env, owner) is not True:
+    state = await operations.observe(mcp.env, f"cd {q(d)} 2>/dev/null || {{ echo __NODIR__; exit 0; }}; cat owner 2>/dev/null; "
+                                     "echo __SEP__; test -f ready && echo ready; echo __SEP__; ls; echo __END__",
+                                     ("__NODIR__", "__END__"), f"MCP server {name}'s session state")
+    if "__NODIR__" in state:
+        return None
+    owner, ready, listing = (state.split("__SEP__\n") + ["", "", ""])[:3]
+    fields = owner.split()
+    if ready.strip() != "ready" or len(fields) != 2 or not fields[0].isdecimal():
+        return None
+    alive = await same_process(mcp.env, owner)
+    if alive is None:
+        alive = await same_process(mcp.env, owner)
+    if alive is None:
+        raise RuntimeError(f"whether MCP server {name}'s client is alive could not be observed; nothing was changed")
+    if not alive:
         return None
     sent = sorted(int(m.group(1)) for m in re.finditer(r"^req_(\d+)\.json$", listing, re.M))
     staged = sorted(int(m.group(1)) for m in re.finditer(r"^req\.tmp\.(\d+)$", listing, re.M))
@@ -74,13 +88,15 @@ async def adopt(mcp, name: str) -> str | None:
         if ident not in sent:
             await run(mcp.env, f"cd {q(d)} && ln -s {operations.REVOKED} start_{ident} 2>/dev/null; true", timeout_s=10)
     for ident in sent:
-        records = await run(mcp.env, operations.resolve_script(d, ident, revoke=False), timeout_s=10)
-        parsed = operations.parse(records.stdout)
+        records = await operations.observe(mcp.env, operations.resolve_script(d, ident, revoke=False), ("__AETHER_OP__",),
+                                           f"MCP request #{ident}'s records")
+        parsed = operations.parse(records)
         if parsed is None or operations.seen(parsed[2], mcp.conversation):
             continue
-        body = await run(mcp.env, f"cat {q(f'{d}/req_{ident}.json')}", timeout_s=10)
+        body = await operations.observe(mcp.env, f"cat {q(f'{d}/req_{ident}.json')} 2>/dev/null; echo; echo __REQ__",
+                                        ("__REQ__",), f"MCP request #{ident}")
         try:
-            request = json.loads(body.stdout)
+            request = json.loads(body.rpartition("__REQ__")[0])
         except ValueError:
             continue
         params = request.get("params") or {}

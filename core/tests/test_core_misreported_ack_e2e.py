@@ -387,3 +387,54 @@ def test_a_restarted_controller_with_every_exec_misreported_runs_the_operation_o
     print(f"T2-ADOPT-{owner.upper()}", len(found["counts"]), failures)
     print(f"T2-ADOPT-{owner.upper()}-CLEANUP", found["cleanup"])
     assert not failures, failures
+
+
+async def adopt_mcp_case(tmp_path, target=None):
+    """The first controller dies with a slow MCP call unanswered; every exec of the restarted controller is misreported
+    in turn while the naive model resends the identical call until it sees the result."""
+    spec = {"name": "fx", "transport": "stdio", "url": None, "command": sys.executable,
+            "args": [mcp_sweep.FIXTURE, "stdio"]}
+    effects = tmp_path / "effects"
+    slow = {"server": "fx", "action": "call", "tool": "effect",
+            "arguments": {"path": str(effects), "delay": 2.0}, "timeout_s": 0.5}
+    first = Mcp(LocalEnv(tmp_path), str(tmp_path / "control"), [spec], adopt=True)
+    first.conversation, first.delivery_tag = set(), lambda: "call_1"
+    assert "no result after" in await first.use(slow, 60)
+    env = CutExecs(tmp_path, target, None, misreport=True)
+    second = Mcp(env, str(tmp_path / "control"), [spec], adopt=True)
+    second.conversation = set()
+    shown: list[str] = []
+    try:
+        env.armed = True
+        for _ in range(8):
+            try:
+                out = await second.use({**slow, "timeout_s": 10.0}, 60)
+            except Exception as exc:
+                out = f"error: {type(exc).__name__}: {exc}"
+            shown.append(out)
+            if "effect-done" in out:
+                break
+        env.armed = False
+        await asyncio.sleep(2.5)  # let any second send finish
+        result = {"effects": len(effects.read_text()) if effects.exists() else 0,
+                  "delivered": sum(o.count("effect-done") for o in shown), "counts": env.counts,
+                  "shown": [o[-200:] for o in shown]}
+    finally:
+        env.armed = False
+    result["cleanup"] = await closed(second)
+    return result
+
+
+def test_a_restarted_mcp_controller_with_every_exec_misreported_runs_the_call_once(tmp_path):
+    (tmp_path / "discover").mkdir()
+    found = asyncio.run(adopt_mcp_case(tmp_path / "discover"))
+    assert (found["effects"], found["delivered"]) == (1, 1), found
+    failures = []
+    for n, (target, _) in enumerate(misreport_points(found["counts"])):
+        case = tmp_path / f"p{n}"
+        case.mkdir()
+        got = asyncio.run(adopt_mcp_case(case, target))
+        if (got["effects"], got["delivered"]) != (1, 1):
+            failures.append((target, got["effects"], got["delivered"], got["shown"]))
+    print("T2-ADOPT-MCP", len(found["counts"]), failures)
+    assert not failures, failures
