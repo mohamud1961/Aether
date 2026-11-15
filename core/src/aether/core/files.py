@@ -108,18 +108,19 @@ class Files:
         start = max(1, int(start_line))
         end = start + max(1, min(int(num_lines), 4000)) - 1
         q = shlex.quote(path)
-        # Slice numbered UTF-8 output in bytes, bounding remote staging to one
-        # page even if selected source lines are huge. The decoder below owns
-        # incomplete trailing code points and the continuation byte offset.
+        # Count and slice in one pass so the page and its range refer to the
+        # same observed stream even if the path is replaced between commands.
+        # Bound remote staging to one page; the decoder below owns incomplete
+        # trailing UTF-8 code points and the continuation byte offset.
         page_program = (
             f"BEGIN {{skip={offset}; left={MAX_READ_CHARS + 1}}} "
             # Only the number goes through sprintf: mawk (the Debian/Ubuntu default awk) caps a sprintf result at
             # 8192 bytes, so formatting the whole line failed every read of a file with a longer line.
-            f'NR>={start} && NR<={end} {{line=sprintf("%6d  ",NR) $0 "\\n"; n=length(line); '
+            f'NR>={start} && NR<={end} && left>0 {{line=sprintf("%6d  ",NR) $0 "\\n"; n=length(line); '
             "if(skip>=n) {skip-=n} else {line=substr(line,skip+1); skip=0; "
             'if(length(line)>left) line=substr(line,1,left); printf "%s",line; '
-            "left-=length(line); if(left==0) exit}} "
-            f"NR>{end} {{exit}}"
+            "left-=length(line)}} "
+            "END {print NR > total_file}"
         )
         res = await run(
             self._env,
@@ -128,10 +129,10 @@ class Files:
             f"if [ -s {q} ]; then grep -qI '' {q}; kind=$?; "
             f"if [ $kind -gt 1 ]; then echo 'file classification read failed' >&2; exit 3; fi; "
             f"if [ $kind -eq 1 ]; then echo BINARY; wc -c < {q} || exit 3; exit 0; fi; fi; "
-            f"total=$(awk 'END {{print NR}}' {q}) || exit 3; "
             "read_tmp=$(mktemp -d) || exit 3; "
             "trap 'rm -rf \"$read_tmp\"' 0; "
-            f'LC_ALL=C awk {shlex.quote(page_program)} {q} > "$read_tmp/page" || exit 3; '
+            f'LC_ALL=C awk -v total_file="$read_tmp/total" {shlex.quote(page_program)} {q} > "$read_tmp/page" || exit 3; '
+            'IFS= read -r total < "$read_tmp/total" || exit 3; '
             'page_hash=$( (sha256sum < "$read_tmp/page" 2>/dev/null || '
             'shasum -a 256 < "$read_tmp/page" 2>/dev/null) | cut -c1-64); '
             "if [ ${#page_hash} -ne 64 ]; then echo 'read integrity hash unavailable' >&2; exit 3; fi; "

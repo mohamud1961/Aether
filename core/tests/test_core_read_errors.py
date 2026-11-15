@@ -37,23 +37,21 @@ def test_empty_whitespace_binary_and_multibyte_pages_remain_distinct(tmp_path):
     assert "TAIL" in asyncio.run(files.read("long", offset=offset))
 
 
-def test_second_read_stage_failure_is_not_a_successful_empty_page(tmp_path):
+def test_page_read_failure_is_not_a_successful_partial_page(tmp_path):
     import shlex
-    import shutil
 
-    real_awk = shutil.which("awk")
-    assert real_awk, "real awk is required for this failure-injection control"
     source = tmp_path / "source.txt"
     source.write_text("important source text\n")
     toolbin = tmp_path / "fault-bin"
     toolbin.mkdir()
-    count, fired = tmp_path / "awk-count", tmp_path / "fault-fired"
+    fired = tmp_path / "fault-fired"
     wrapper = toolbin / "awk"
     wrapper.write_text(
         "#!/bin/sh\n"
-        f"if [ -f {shlex.quote(str(count))} ]; then touch {shlex.quote(str(fired))}; "
-        "echo 'synthetic second-stage read failure' >&2; exit 7; fi\n"
-        f"touch {shlex.quote(str(count))}\nexec {shlex.quote(real_awk)} \"$@\"\n"
+        f"touch {shlex.quote(str(fired))}\n"
+        "echo 'incomplete page'\n"
+        "echo 'synthetic page read failure' >&2\n"
+        "exit 7\n"
     )
     wrapper.chmod(0o700)
 
@@ -65,5 +63,5 @@ def test_second_read_stage_failure_is_not_a_successful_empty_page(tmp_path):
         with pytest.raises(OSError):
             asyncio.run(Files(FailingPageEnv(tmp_path), str(tmp_path)).read(source.name))
     finally:
-        assert fired.exists(), "the negative must actually reach the failing second read"
+        assert fired.exists(), "the negative must actually reach the failing page read"
     assert source.read_text() == "important source text\n"
