@@ -5,9 +5,9 @@ Each is a measured fact the model would otherwise spend early calls finding, sta
 - Submodules and hooks per repository (D4): declared submodules and how many are initialized, active hooks and a
   configured ``core.hooksPath``. A commit can run a hook; a submodule's files are not in the parent's history.
 - Data files in the workspace (D5): kind and size; a CSV/TSV first line; for SQLite, the ``-wal``/``-shm`` files
-  beside it and its tables. The tables are read from a copy in a temporary directory, so the original database is
-  never opened. Only regular WAL sidecars are copied. Opening the source read-write can checkpoint and delete the WAL (the db-wal study, 10 Nov), and read-only
-  opening can still create ``-shm``.
+  beside it and its tables. SQLite queries only a temporary copy, and a changed source invalidates the copy.
+  Only regular WAL sidecars are copied. Opening the source read-write can checkpoint and delete the WAL (the
+  db-wal study, 10 Nov), and read-only opening can still create ``-shm``.
 - Absolute paths written in the task text (D7): exists or not, and kind. Only literal ``/...`` tokens; nothing is
   inferred from the wording.
 - Display and Python browser drivers (D9): whether a display is set or an X socket exists, and whether ``playwright``
@@ -41,6 +41,16 @@ find -P "$wd" -xdev -mindepth 1 -maxdepth 3 \( -name .git -type d -print -prune 
   hp=$(git config --file "$r/.git/config" --get core.hooksPath 2>/dev/null | head -c 160)
   printf 'G\t%s\t%s\t%s\t%s\t%s\n' "$r" "$sub" "$init" "$hooks" "$hp"
 done
+sqlite_copy_state() {
+  stat -c '%d:%i:%f:%s:%y:%z' -- "$1" 2>/dev/null || return 1
+  for suffix in -wal -journal; do
+    if [ -e "$1$suffix" ] || [ -L "$1$suffix" ]; then
+      stat -c '%d:%i:%f:%s:%y:%z' -- "$1$suffix" 2>/dev/null || return 1
+    else
+      printf 'absent\n'
+    fi
+  done
+}
 budget={copy_limit}
 find -P "$wd" -xdev -mindepth 1 -maxdepth 3 \( -name '.*' -type d -prune -o -type f \( -iname '*.csv' -o -iname '*.tsv' -o -iname '*.parquet' -o -iname '*.db' -o -iname '*.sqlite' -o -iname '*.sqlite3' -o -iname '*.json' -o -iname '*.jsonl' -o -iname '*.xlsx' \) -print \) 2>/dev/null | grep -Eiv '{sensitive}' | sort | head -n {max_data} | while IFS= read -r f; do
   [ -f "$f" ] && [ ! -L "$f" ] || continue
@@ -48,6 +58,7 @@ find -P "$wd" -xdev -mindepth 1 -maxdepth 3 \( -name '.*' -type d -prune -o -typ
   size=$(stat -c %s -- "$f" 2>/dev/null) || continue
   rel=${f#"$wd"/}
   if [ "$(head -c 15 "$f" 2>/dev/null)" = "SQLite format 3" ]; then
+    before=$(sqlite_copy_state "$f") || before=""
     side=""; need=$size; wal=0; copy=1
     for s in -wal -shm -journal; do
       if [ -L "$f$s" ]; then
@@ -64,11 +75,17 @@ find -P "$wd" -xdev -mindepth 1 -maxdepth 3 \( -name '.*' -type d -prune -o -typ
     tables="(not read)"
     if [ "$copy" -eq 0 ]; then
       tables="(sidecar not copied)"
-    elif command -v python3 >/dev/null 2>&1 && [ "$need" -le "$budget" ]; then
-      t=$(mktemp -d) && cp --no-dereference "$f" "$t/db" && [ ! -L "$t/db" ] &&
-        { [ "$wal" -eq 0 ] || { cp --no-dereference "$f-wal" "$t/db-wal" && [ ! -L "$t/db-wal" ]; }; } &&
-        { tables=$(cd / && $T python3 -I -c 'import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); r=[n for n, k in c.execute("select name, type from sqlite_master order by name") if k == "table"]; print((" ".join(r[:12]) + (" (+%d more)" % (len(r) - 12) if len(r) > 12 else "")) or "none")' "$t/db" 2>/dev/null) ||
-          tables="(schema unavailable)"; }
+    elif [ -n "$before" ] && [ "$need" -le "$budget" ] && command -v python3 >/dev/null 2>&1 && t=$(mktemp -d); then
+      copied=0
+      cp --no-dereference "$f" "$t/db" && [ ! -L "$t/db" ] &&
+        { [ "$wal" -eq 0 ] || { cp --no-dereference "$f-wal" "$t/db-wal" && [ ! -L "$t/db-wal" ]; }; } && copied=1
+      after=$(sqlite_copy_state "$f") || after=""
+      if [ "$before" != "$after" ]; then
+        tables="(source changed)"
+      elif [ "$copied" -eq 1 ]; then
+        tables=$(cd / && $T python3 -I -c 'import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); r=[n for n, k in c.execute("select name, type from sqlite_master order by name") if k == "table"]; print((" ".join(r[:12]) + (" (+%d more)" % (len(r) - 12) if len(r) > 12 else "")) or "none")' "$t/db" 2>/dev/null) ||
+          tables="(schema unavailable)"
+      fi
       tables=$(printf '%.300s' "$tables" | tr '\t\r\n' ' ')
       rm -rf "$t"; budget=$((budget - need))
     fi
@@ -150,6 +167,8 @@ def parse(stdout: str) -> tuple[list[str], dict]:
                     tables = "tables not read: no python3, over the copy limit or unreadable files"
                 elif extra == "(sidecar not copied)":
                     tables = "tables not read: sidecar skipped"
+                elif extra == "(source changed)":
+                    tables = "tables not read: source changed during copy"
                 elif extra == "(schema unavailable)":
                     tables = "tables not read: SQLite query failed on the copy"
                 else:

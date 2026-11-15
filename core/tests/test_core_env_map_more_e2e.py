@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import shlex
 import shutil
 import sqlite3
 
@@ -152,6 +153,35 @@ def test_failed_sqlite_schema_read_is_not_reported_as_an_observed_schema(tmp_pat
     assert row["more_ok"]
     assert "data/broken.db (SQLite, 4112 bytes; tables not read" in first, first
     assert "Traceback" not in first
+
+
+@linux
+def test_startup_omits_schema_if_a_writer_checkpoints_between_file_copies(tmp_path, monkeypatch):
+    work = fixture(tmp_path)
+    database = work / "data" / "app.db"
+    hook_bin = tmp_path / "copy-hook"
+    hook_bin.mkdir()
+    copy = hook_bin / "cp"
+    checkpoint = (
+        "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); "
+        "assert c.execute('pragma wal_checkpoint(truncate)').fetchone() == (0, 0, 0)"
+    )
+    copy.write_text(
+        f'#!/bin/sh\n{shlex.quote(shutil.which("cp"))} "$@" || exit $?\n'
+        f'if [ "$2" = {shlex.quote(str(database))} ]; then\n'
+        f'  exec python3 -I -c {shlex.quote(checkpoint)} "$2"\nfi\n'
+    )
+    copy.chmod(0o755)
+    monkeypatch.setenv("PATH", str(hook_bin) + os.pathsep + os.environ["PATH"])
+
+    with sqlite3.connect(database) as original:
+        assert original.execute("select count(*) from orders").fetchone() == (1,)
+        first, row = run(tmp_path, work, "Inspect the available data.")
+        assert original.execute("select count(*) from orders").fetchone() == (1,)
+        assert (work / "data" / "app.db-wal").stat().st_size == 0
+    assert row["more_ok"]
+    assert "tables not read: source changed during copy" in first, first
+    assert "table names, read from a copy:" not in first, first
 
 
 def test_file_text_is_quoted_and_cannot_break_out_of_its_line():
