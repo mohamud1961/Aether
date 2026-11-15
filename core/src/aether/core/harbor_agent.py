@@ -111,13 +111,14 @@ def build_provider(
     )
     effort = environ.get(EFFORT_ENV, "high").strip() or "high"
     shape = _request_shape(environ)
-    _calls(environ)  # only "one" is accepted; anything else stops the run
+    calls = _calls(environ)
+    parallel_reads = _parallel_reads(environ)
     sampling = {**SAMPLING, **extra_sampling(environ)}
     params = {
         **(sampling if shape == "chat" else {}),
         "reasoning_effort": None if effort == "none" else effort,  # none: never sent (no effort levels)
         "tool_choice": "required",
-        "parallel_tool_calls": _parallel_reads(environ),
+        "parallel_tool_calls": calls == "many" or parallel_reads,
     }
     log = CallLog(logs_dir / CALLS_FILE if logs_dir is not None else None)
     client = AsyncOpenAI(

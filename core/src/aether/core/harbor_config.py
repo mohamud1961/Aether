@@ -29,8 +29,8 @@ REPL_ENV = "AETHER_CORE_REPL"
 REPL_MODES = ("on", "off"); FACTS_MODES = ("off", "on", "pull", "v2")
 IMAGES_ENV = "AETHER_CORE_IMAGES"
 PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
-# optional; unset means "one" (one tool call per model turn, the baseline). "many" was removed (R2/N1/N2 arm e failed).
-CALLS_ENV, CALLS_MODES = "AETHER_CORE_CALLS", ("one",)
+# Optional; "many" is an experimental provider setting. Earlier R2/N1/N2 arm e failed; the default remains "one".
+CALLS_ENV, CALLS_MODES = "AETHER_CORE_CALLS", ("one", "many")
 # optional; unset means "newest" (only the latest turn's reasoning is sent back); "all" sends every turn's back.
 REASONING_ENV = "AETHER_CORE_REASONING"
 NATIVE_COMPACTION_ENV = "AETHER_CORE_NATIVE_COMPACTION"  # optional token threshold (Responses only; E18 K1)
