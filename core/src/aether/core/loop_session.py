@@ -54,6 +54,7 @@ class _Session:
         self.timeout_s, self.trace, self.config = timeout_s, trace, config
         self.witness = None  # outside_witness: first-write capture for the file tools (A21)
         self.rehydrate_due = False  # a provider compaction item arrived: rehydrate before the next request
+        self.session_log = None  # H10: set by the loop when config.session_log is on
         self.started = time.monotonic()
         self.deadline = self.started + timeout_s - stop_margin_s
         self.result = RunResult("timeout")

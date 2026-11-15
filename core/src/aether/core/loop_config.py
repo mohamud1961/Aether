@@ -77,6 +77,7 @@ class CoreConfig:
     outside_witness: bool = False  # copies of /etc at the start and of outside originals at the first file-tool write (A21)
     outside_roots: tuple[str, ...] = ()  # with outside_witness: the roots copied at the start
     mcp_idempotency: bool = False  # an idempotency key in each MCP tool call's params._meta, reused on an identical retry after an unknown effect (A14)
+    session_log: bool = False  # H10: append-only session log (logs/session) a new controller can resume from
     check_versions: bool = False  # E15, trace only: workspace version per action from the state service
     state_view: bool = False  # with start_copy: a read-only command showing what changed since it (state_view)
     diffcheck: bool = False  # an executable check of the task's output, written from the task alone during the run (diffcheck)

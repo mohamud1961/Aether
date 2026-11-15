@@ -24,7 +24,7 @@ from .loop_records import RunResult, Trace  # re-exported for existing callers
 from .oversight import ReviewPlan
 from .provider import ChatProvider, ProviderError
 from .review import Transport
-from . import agenda, browser, open_issues, operations, step0, workspace_brief
+from . import agenda, browser, open_issues, operations, session_log, step0, workspace_brief
 from .tools import system_prompt, tools
 from .loop_config import AFTER_CUT, AFTER_CUT_MAX_TOKENS, CONTEXT_MODES, MAX_OUTPUT_TOKENS, VERIFIER_ROLE, CoreConfig  # noqa: F401
 from .loop_session import _Session, _append, _publish_facts
@@ -71,6 +71,8 @@ async def run_agent(
         review_call,
         STOP_MARGIN_S,
     )
+    if config.session_log and getattr(trace, "path", None) is not None:
+        s.session_log = session_log.SessionLog(trace.path.parent / "session")
     if resume is not None and s.facts:
         s.facts.initial_workspace = facts.continuation_state(resume) or s.facts.initial_workspace
         s.facts.initial_workspace.prepare_resume()
@@ -435,7 +437,12 @@ async def _loop(s: _Session) -> None:
             continue
         idle_turns = 0
         s.output_cut = turn.finish_reason == "length"  # a call cut off by the output limit has broken arguments
-        if await _run_calls(s, turn.tool_calls):
+        if s.session_log:
+            s.session_log.write("asked", result.calls, session_log.state_of(s))
+        finished = await _run_calls(s, turn.tool_calls)
+        if s.session_log:
+            s.session_log.write("done", result.calls, session_log.state_of(s))
+        if finished:
             result.status = "finished"
             return
 
