@@ -25,10 +25,13 @@ from typing import Any
 from .env import Environment, run
 from .transfer import get_bytes
 
-MAX_FILE_BYTES = 30_000_000
 MAX_PIXELS = (
     40_000_000  # checked from the header before decoding (decompression-bomb guard)
 )
+# The pixel bound is the real limit; the byte bound only has to admit any image within it, stored uncompressed
+# (4 bytes a pixel plus a header). M1 census, 15 Nov: a 30 MB byte cap refused a 4000x4000 PPM (48 MB, 16 M
+# pixels) in 48 of 72 view_image errors across 27 runs of one task, though it was well inside the pixel bound.
+MAX_FILE_BYTES = MAX_PIXELS * 4 + 1_000_000
 MAX_SIDE = 1024
 KEEP_IMAGES = 2
 HISTORY_FIELD = "aether_image_history"
