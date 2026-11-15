@@ -125,6 +125,7 @@ class CoreConfig:
     mcp_servers: tuple = ()  # opt-in (AETHER_CORE_MCP): task-declared MCP servers exposed through the mcp tool
     skills_dir: str | None = None  # opt-in (AETHER_CORE_SKILLS): the task-declared skills directory to list at start
     env_map: bool = False  # opt-in: repositories and listening services, measured once at start (env_map)
+    rehydrate: bool = False  # opt-in (E18 K2): after a checkpoint or provider compaction, changed files read again
     completion_notices: bool = False  # opt-in: one line when a background terminal command finishes (completion_notice)
     terminal_result_delivery: bool = False  # opt-in: collect completed terminal output at a tool boundary
     workspace_brief: bool = False
@@ -178,6 +179,7 @@ class _Session:
     ):
         self.env, self.task, self.workdir, self.provider = env, task, workdir, provider
         self.timeout_s, self.trace, self.config = timeout_s, trace, config
+        self.rehydrate_due = False  # a provider compaction item arrived: rehydrate before the next request
         self.started = time.monotonic()
         self.deadline = self.started + timeout_s - STOP_MARGIN_S
         self.result = RunResult("timeout")
@@ -622,6 +624,9 @@ async def _loop(s: _Session) -> None:
         cut = turn.finish_reason == "length" and not turn.tool_calls
         assistant = turn.assistant_message()
         _append(s, assistant)
+        if assistant.get("compaction"):
+            s.trace("native_compaction", items=len(assistant["compaction"]), usage=turn.usage)
+            s.rehydrate_due = True
         if s.clm:
             s.clm.note_reasoning(assistant, turn.usage.get("reasoning"))
         if not turn.tool_calls:
@@ -991,9 +996,24 @@ async def _keep_history(s: _Session) -> str:
     return f" (original appended messages, removed ones included, are kept unchanged in {path})"
 
 
+async def _rehydrate(s: _Session, cause: str) -> None:
+    """E18 K2: after the context is shortened, the files this run changed are shown again as they are now."""
+    if not s.config.rehydrate or s.clm is None:
+        return
+    from . import rehydrate
+
+    note, row = await rehydrate.note(s.env, list(s.files.written))
+    if note:
+        _attach(s.clm.editable, note)
+    s.trace("rehydrate", cause=cause, **row)
+
+
 async def _fit_context(s: _Session) -> bool:
     """CLM budget step before a request: roll back, or checkpoint, until it fits; then nudge."""
     clm = s.clm
+    if s.rehydrate_due:
+        s.rehydrate_due = False
+        await _rehydrate(s, "native_compaction")
     while clm.over_limit():
         if clm.can_roll_back():
             note = clm.roll_back(await _keep_history(s))
@@ -1053,6 +1073,7 @@ async def _fit_context(s: _Session) -> bool:
             note = await s.record.after_checkpoint()
             if note:
                 _attach(clm.editable, note)
+        await _rehydrate(s, "checkpoint")
         _restore_facts(s)
         if clm.over_limit():
             s.result.status, s.result.error = (

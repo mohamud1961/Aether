@@ -59,6 +59,9 @@ class Turn:
     reasoning_items: list[dict[str, Any]] = field(
         default_factory=list
     )  # Responses API: the encrypted reasoning that can be replayed (see responses)
+    compaction_items: list[dict[str, Any]] = field(
+        default_factory=list
+    )  # Responses API native compaction (switch AETHER_CORE_NATIVE_COMPACTION): opaque, always replayed
 
     def response(self) -> dict[str, Any]:
         """What came back, as assembled from the stream (partial if the stream did not finish)."""
@@ -88,6 +91,8 @@ class Turn:
             msg["reasoning_content"] = self.reasoning
         if self.tool_calls:
             msg["tool_calls"] = [_replayable(c) for c in self.tool_calls]
+        if self.compaction_items:  # its own key: the reasoning replay policy never drops it
+            msg["compaction"] = self.compaction_items
         return msg
 
 

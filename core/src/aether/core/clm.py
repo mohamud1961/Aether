@@ -138,7 +138,8 @@ class ClmContext:
         """Pinned + editable; reasoning is replayed per ``settings.replay_reasoning``."""
         keep = {id(m) for m in self._replayed()}
         out = list(self.pinned)
-        for msg in self.editable:
+        compacted = [i for i, m in enumerate(self.editable) if m.get("compaction")]
+        for msg in self.editable[compacted[-1]:] if compacted else self.editable:
             if id(msg) not in keep and "reasoning_content" in msg:
                 msg = {k: v for k, v in msg.items() if k != "reasoning_content"}
             out.append(msg)

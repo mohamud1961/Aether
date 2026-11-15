@@ -61,6 +61,8 @@ def input_items(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
             items.append({"role": role, "content": _parts(msg.get("content"))})
         elif role == "assistant":
             content, calls = msg.get("content"), msg.get("tool_calls") or []
+            # the provider's compaction item stands for everything before it (CLM sends nothing older)
+            items.extend(msg.get("compaction") or [])
             replay = msg.get("reasoning_content")
             # encrypted items only (a text reasoning field cannot be replayed here); a reasoning item must be
             # followed by the output it produced, so a turn with neither text nor calls replays none
@@ -120,9 +122,16 @@ class ResponsesProvider(ChatProvider):
     """``ChatProvider`` (retries, deadlines, call log) with the Responses request and stream."""
 
     def __init__(
-        self, client: Any, *, cache_key: str | None = None, chain: bool = False, **kwargs: Any
+        self, client: Any, *, cache_key: str | None = None, chain: bool = False,
+        native_compaction: int | None = None, **kwargs: Any
     ) -> None:
         super().__init__(client, **kwargs)
+        if native_compaction is not None and (chain or native_compaction < 1000):
+            # the provider says never to prune a previous_response_id chain; Core prunes before the newest item
+            raise ValueError("native compaction needs chain off and a threshold of at least 1000 tokens")
+        # native_compaction: the provider compacts its rendered input past this many tokens and returns an opaque
+        # compaction item; the next requests send that item and nothing older (E18 candidate K1).
+        self.native_compaction = native_compaction
         # chain: stored responses, and a request that only extends the previous one sends the new items after
         # previous_response_id (the provider holds the rest). Any other request, or any failure, sends it all.
         self.chain, self._last = chain, None
@@ -146,6 +155,10 @@ class ResponsesProvider(ChatProvider):
         params.update(stream=True, store=False, include=list(INCLUDE))
         if self.cache_key:
             params["prompt_cache_key"] = self.cache_key
+        if self.native_compaction is not None:
+            body = dict(params.get("extra_body") or {})
+            body["context_management"] = [{"type": "compaction", "compact_threshold": self.native_compaction}]
+            params["extra_body"] = body
         if effort:
             params["reasoning"] = {"effort": effort, "summary": "auto"}
         request: dict[str, Any] = {
@@ -187,6 +200,8 @@ class ResponsesProvider(ChatProvider):
                     item = _dump(event.item)
                     if item.get("type") == "reasoning":
                         reasoning.append(item)
+                    elif str(item.get("type", "")).startswith("compaction"):
+                        turn.compaction_items.append(item)
                     elif item.get("type") == "function_call":
                         turn.streamed_calls[len(turn.streamed_calls)] = {
                             "id": item.get("call_id", ""),

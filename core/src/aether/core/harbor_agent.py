@@ -61,6 +61,7 @@ PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
 CALLS_ENV, CALLS_MODES = "AETHER_CORE_CALLS", ("one",)
 # optional; unset means "newest" (only the latest turn's reasoning is sent back); "all" sends every turn's back.
 REASONING_ENV = "AETHER_CORE_REASONING"
+NATIVE_COMPACTION_ENV = "AETHER_CORE_NATIVE_COMPACTION"  # optional token threshold (Responses only; E18 K1)
 CHAIN_ENV = "AETHER_CORE_CHAIN"  # optional on/off (Responses only): previous_response_id chaining, stored responses
 MAX_OUTPUT_ENV = "AETHER_CORE_MAX_OUTPUT"  # optional; per-turn output ceiling in tokens (default 16384); see _max_output
 BUDGET_ENV = "AETHER_CORE_CONTEXT_BUDGET"  # optional; editable-context tokens (default 32000); see _budget
@@ -145,11 +146,14 @@ def build_provider(
         max_retries=0,
         timeout=httpx.Timeout(connect=30.0, read=240.0, write=60.0, pool=30.0),
     )
+    native = _native_compaction(environ)
     if shape == "responses":
         from .responses import ResponsesProvider
 
         chain = _choice(environ, CHAIN_ENV, REPL_MODES, "off") == "on"
-        return ResponsesProvider(client, model=model, params=params, log=log, chain=chain)
+        return ResponsesProvider(client, model=model, params=params, log=log, chain=chain, native_compaction=native)
+    if native is not None:
+        raise ValueError(f"{NATIVE_COMPACTION_ENV} needs the Responses request shape")
     return (StrictChatProvider if _choice(environ, "AETHER_CORE_STRICT_TOOLS", REPL_MODES, "off") == "on" else ChatProvider)(
         client,
         model=model,
@@ -225,6 +229,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         finish_settle=_choice(environ, "AETHER_CORE_FINISH_SETTLE", REPL_MODES, "off") == "on",
         finish_facts=_choice(environ, "AETHER_CORE_FINISH_FACTS", REPL_MODES, "off") == "on",
         env_map=_choice(environ, "AETHER_CORE_ENV_MAP", REPL_MODES, "off") == "on",
+        rehydrate=_choice(environ, "AETHER_CORE_REHYDRATE", REPL_MODES, "off") == "on",
         workspace_search=_choice(environ, "AETHER_CORE_WORKSPACE_SEARCH", REPL_MODES, "off") == "on",
         completion_notices=_choice(environ, "AETHER_CORE_COMPLETION_NOTICES", REPL_MODES, "off") == "on",
         stable_facts=_choice(environ, "AETHER_CORE_STABLE_FACTS", REPL_MODES, "off") == "on",
@@ -274,6 +279,16 @@ def _record(environ: Mapping[str, str]) -> dict:
         raise ConfigError(f"{RECORD_ENV} and {HOLD_ENV} both act at the first finish; use one")
     return {"record": mode != "off", "record_measure": mode in ("measure", "paths", "coverage"), "finish_hold": hold,
             "record_paths": mode in ("paths", "coverage"), "record_commands": mode == "coverage"}
+
+
+def _native_compaction(environ: Mapping[str, str]) -> int | None:
+    """Off unless set to a token threshold; anything else stops the run (no silent default)."""
+    raw = environ.get(NATIVE_COMPACTION_ENV, "").strip()
+    if raw in ("", "off"):
+        return None
+    if not raw.isdigit():
+        raise ValueError(f"{NATIVE_COMPACTION_ENV} must be off or a token threshold, got {raw!r}")
+    return int(raw)
 
 
 def _choice(
