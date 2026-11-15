@@ -46,6 +46,53 @@ async def _rehydrate(s: _Session, cause: str) -> None:
     s.trace("rehydrate", cause=cause, **row)
 
 
+async def _cut_window(s: _Session) -> bool:
+    """Remove whole oldest turns without inventing a summary; original messages remain retrievable."""
+    clm = s.clm
+    before = clm.tokens()
+    history = await _keep_history(s)
+    removed = 0
+
+    def discard_oldest() -> bool:
+        nonlocal removed
+        starts = [i for i, message in enumerate(clm.editable)
+                  if message.get("role") == "assistant"
+                  and not isinstance(message.get("content"), (facts.ManagedFactsText, WorkspaceBriefText))]
+        if len(starts) < 2:
+            return False
+        del clm.editable[:starts[1]]
+        removed += 1
+        return True
+
+    while clm.over_limit():
+        if not discard_oldest():
+            s.result.status, s.result.error = "context_error", "newest complete turn exceeds the context limit"
+            s.trace("context_window_cut", ok=False, removed_turns=removed, error=s.result.error)
+            return False
+    _attach(clm.editable, "[context window] Older turns were removed without a summary." + history)
+    while clm.over_limit():
+        if not discard_oldest():
+            s.result.status, s.result.error = "context_error", "newest complete turn and history notice exceed the context limit"
+            s.trace("context_window_cut", ok=False, removed_turns=removed, error=s.result.error)
+            return False
+    clm.stats.checkpoints += 1
+    clm._rearm()
+    if s.state:
+        s.state.dirty = True
+    if s.record:
+        note = await s.record.after_checkpoint()
+        if note:
+            _attach(clm.editable, note)
+    _restore_facts(s)
+    await _rehydrate(s, "window_cut")
+    if clm.over_limit():
+        s.result.status, s.result.error = "context_error", "context exceeds the limit after restoring state"
+        s.trace("context_window_cut", ok=False, removed_turns=removed, error=s.result.error)
+        return False
+    s.trace("context_window_cut", ok=True, tokens_before=before, tokens=clm.tokens(), removed_turns=removed)
+    return True
+
+
 async def _fit_context(s: _Session) -> bool:
     """CLM budget step before a request: roll back, or checkpoint, until it fits; then nudge."""
     clm = s.clm
@@ -57,6 +104,10 @@ async def _fit_context(s: _Session) -> bool:
             note = clm.roll_back(await _keep_history(s))
             s.trace("context_rollback", tokens=clm.tokens(), note=note)
             _restore_facts(s)
+            continue
+        if clm.settings.checkpoint_policy == "window":
+            if not await _cut_window(s):
+                return False
             continue
         keep = clm.checkpoint_split()
         try:

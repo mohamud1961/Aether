@@ -122,6 +122,12 @@ class CoreConfig:
             raise ValueError("managed_facts and env_brief are alternative information channels")
         if self.context not in CONTEXT_MODES:
             raise ValueError(f"context must be one of {CONTEXT_MODES}")
+        from .clm_settings import CHECKPOINT_POLICIES
+
+        if self.clm.checkpoint_policy not in CHECKPOINT_POLICIES:
+            raise ValueError(f"checkpoint_policy must be one of {CHECKPOINT_POLICIES}")
+        if self.clm.checkpoint_policy != "summary" and self.context != "clm":
+            raise ValueError("window checkpoint policy requires Core CLM history")
         from .evidence_context import CONTEXT_EVIDENCE_MODES
 
         if self.evidence_presentation not in CONTEXT_EVIDENCE_MODES:

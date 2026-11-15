@@ -7,7 +7,7 @@ import os
 from typing import Any, Mapping
 
 from . import fork
-from .clm import NOTES_VOICES, REPLAY_MODES, ClmSettings
+from .clm import CHECKPOINT_POLICIES, NOTES_VOICES, REPLAY_MODES, ClmSettings
 from .loop import CONTEXT_MODES, CoreConfig
 from .oversight import ReviewPlan
 from .diffcheck import DIFFCHECK_ENV, DIFFCHECK_MODES
@@ -28,6 +28,7 @@ CONTEXT_ENV = "AETHER_CORE_CONTEXT"
 REPL_ENV = "AETHER_CORE_REPL"
 REPL_MODES = ("on", "off"); FACTS_MODES = ("off", "on", "pull", "v2")
 IMAGES_ENV = "AETHER_CORE_IMAGES"
+CHECKPOINT_POLICY_ENV = "AETHER_CORE_CHECKPOINT_POLICY"
 PARALLEL_ENV = "AETHER_CORE_PARALLEL_READS"
 # Optional; "many" is an experimental provider setting. Earlier R2/N1/N2 arm e failed; the default remains "one".
 CALLS_ENV, CALLS_MODES = "AETHER_CORE_CALLS", ("one", "many")
@@ -124,6 +125,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         clm=ClmSettings(
             replay_reasoning=_replay(environ, context),
             **_budget(environ),
+            checkpoint_policy=_choice(environ, CHECKPOINT_POLICY_ENV, CHECKPOINT_POLICIES, "summary"),
             notes_voice=_choice(environ, NOTES_ENV, NOTES_VOICES, "legacy"),
             attest_original_history=(
                 _choice(environ, CONTEXT_EVIDENCE_ENV, CONTEXT_EVIDENCE_MODES, "off") != "off"
