@@ -56,7 +56,7 @@ class Terminals(TerminalIO, TerminalLifecycle):
     def __init__(
         self, env: Environment, workdir: str, clock, control_dir: str = CONTROL_DIR,
         command_names: tuple[str, ...] = (), capture_state: bool = False, preserve_existing: bool = False,
-        deliver_results: bool = False,
+        deliver_results: bool = False, fast_process_scan: bool = False,
     ) -> None:
         facts_probe.terminal_scope(command_names)
         self._env = env
@@ -64,6 +64,7 @@ class Terminals(TerminalIO, TerminalLifecycle):
         self._capture_state = capture_state
         self._preserve_existing = preserve_existing
         self._deliver_results = deliver_results
+        self._fast_process_scan = fast_process_scan
         self._control_dir = control_dir
         self._workdir = workdir
         self._clock = clock  # callable -> remaining seconds
@@ -490,7 +491,7 @@ class Terminals(TerminalIO, TerminalLifecycle):
                 + (f"no new output for {quiet:.0f}s · " if quiet >= 10 else "")
                 + f"terminal {name}; {guidance}]"
             )
-            procs = await describe_processes(self._env, session.pid)
+            procs = await describe_processes(self._env, session.pid, fast=self._fast_process_scan)
             if procs:
                 status += "\n[its processes: " + "; ".join(procs) + "]"
         else:

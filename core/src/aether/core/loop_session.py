@@ -66,6 +66,7 @@ class _Session:
             command_names=facts_probe.COMMANDS if config.managed_facts and config.role == "worker" else (),
             capture_state=config.facts_pull, preserve_existing=config.terminal_events,
             deliver_results=config.terminal_result_delivery,
+            fast_process_scan=config.fast_process_scan,
         )
         self.facts = (facts_pull.make(self.env, workdir, self.remaining, trace, terminal_state=self.terminals.observed_session,
                                      python_state=lambda: self.repl.observed_state(), pull=config.facts_pull, v2=config.facts_v2,

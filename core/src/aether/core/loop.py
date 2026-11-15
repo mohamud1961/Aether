@@ -248,6 +248,7 @@ async def run_agent(
                 intent=config.intent,
                 reviews=config.reviews.__dict__,
                 clm=config.clm.__dict__ if s.clm else None,
+                **({"fast_process_scan": True} if config.fast_process_scan else {}),
             )
             await _loop(s)
     except TimeoutError:
