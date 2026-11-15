@@ -45,17 +45,26 @@ def _fsync_dir(path: Path) -> None:
         os.close(fd)
 
 
+def _private_open(path: Path, mode: str):
+    """Open for writing as 0600 whatever the process umask (recover() refuses group/other-writable files)."""
+    flags = os.O_WRONLY | os.O_CREAT | (os.O_APPEND if "a" in mode else os.O_TRUNC)
+    fd = os.open(path, flags, 0o600)
+    os.fchmod(fd, 0o600)  # an existing file keeps its old mode otherwise
+    return os.fdopen(fd, mode)
+
+
 class SessionLog:
     def __init__(self, directory: str | Path) -> None:
         self.dir = Path(directory)
         self.dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(self.dir, 0o700)  # mkdir's mode is masked by the umask
         self.seq = sum(1 for _ in _lines(self.dir / LOG))
 
     def write(self, kind: str, turn: int, state: dict[str, Any]) -> dict[str, Any]:
         data = pickle.dumps(state, protocol=pickle.HIGHEST_PROTOCOL)
         name = f"{self.seq:06d}-{kind}.pkl"
         tmp = self.dir / (name + ".tmp")
-        with open(tmp, "wb") as fh:
+        with _private_open(tmp, "wb") as fh:
             fh.write(data)
             fh.flush()
             os.fsync(fh.fileno())
@@ -63,7 +72,7 @@ class SessionLog:
         _fsync_dir(self.dir)
         row = {"seq": self.seq, "kind": kind, "turn": turn, "file": name,
                "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
-        with open(self.dir / LOG, "a") as fh:
+        with _private_open(self.dir / LOG, "a") as fh:
             fh.write(json.dumps(row, sort_keys=True) + "\n")
             fh.flush()
             os.fsync(fh.fileno())
