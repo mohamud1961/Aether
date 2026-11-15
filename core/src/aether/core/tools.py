@@ -28,8 +28,7 @@ foreground with a wait_s: the call returns as soon as the command finishes, and 
 wait again or interrupt it. That is faster than `cmd & sleep N`, which always waits the full N seconds. Each \
 terminal keeps its full output in a log file; large outputs are shown as head and tail with the log path, so \
 grep or tail the log instead of re-running.
-- read_file, write_file, edit_file: read with line numbers, create or replace files, and make exact edits.
-{python}{images}- finish: end the task.
+{file_tools}{python}{images}- finish: end the task.
 {context}
 """
 SOLVER_WORKING = """Working well:
@@ -45,6 +44,8 @@ it, when you expected it to finish or exit, is hung or looping; find out why rat
 - Every tool result shows the elapsed time and the time limit. Get a complete working result early, then \
 improve it.
 - Call finish only when every requirement is met and checked, or when no time is left."""
+FILE_TOOLS_LINE = "- read_file, write_file, edit_file: read with line numbers, create or replace files, and make exact edits.\n"
+TOOLS_DOC = TOOLS_DOC.replace("{file_tools}", FILE_TOOLS_LINE)
 BASE_PROMPT = SOLVER_INTRO + TOOLS_DOC + SOLVER_WORKING
 # Study arm AETHER_CORE_WORKING=lean (11 Nov): the same block without the three thoroughness lines. Luna rewrote git
 # history in 86/117 Core sanitize runs (5 passed) against about a third of thin-harness runs, which carry none of them.
@@ -382,6 +383,7 @@ def system_prompt(
     hygiene: str = "off",
     notes: str = "legacy",
     working: str = "on",
+    file_tools: bool = True,
 ) -> str:
     context = CLM_DOC.replace(MIRROR_PATH, mirror_path).replace(
         HISTORY_PATH, history_path
@@ -394,6 +396,8 @@ def system_prompt(
     if hygiene != "off" and not verifier:  # inserted before the closing "Call finish only when..." line
         head, sep, tail = base.rpartition("\n- Call finish only when")
         base = head + HYGIENE_DOC[hygiene] + sep + tail
+    if not file_tools:  # tool-screen arm T0 (AETHER_CORE_TOOLSET=minimal): never describe a tool that is not offered
+        base = base.replace(FILE_TOOLS_LINE, "")
     return (
         (VERIFIER_PROMPT if verifier else base).format(
             python=PYTHON_DOC.format(version=python_version) if python_version else "",
@@ -433,14 +437,13 @@ def tools(
     history: bool = False,
     verdict: bool = False,
     terminal_events: bool = False,
+    file_tools: bool = True,
 ) -> list[dict[str, Any]]:
     return [
         TERMINAL,
         *([TERMINAL_WAIT] if terminal_events else []),
         *([PYTHON] if python else []),
-        READ_FILE,
-        WRITE_FILE,
-        EDIT_FILE,
+        *([READ_FILE, WRITE_FILE, EDIT_FILE] if file_tools else []),
         *([VIEW_IMAGE] if images else []),
         *([READ_HISTORY] if history else []),
         VERDICT_FINISH if verdict else FINISH,

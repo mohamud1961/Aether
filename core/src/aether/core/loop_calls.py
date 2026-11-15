@@ -203,7 +203,8 @@ async def _invoke(s: _Session, call: dict) -> tuple[dict, str, bool, float, bool
         out = f"error: {type(exc).__name__}: {str(exc)[:1000]}"
         if isinstance(exc, json.JSONDecodeError) and s.output_cut:  # y13/y14: 4 of 4 bad-JSON calls were cut off here
             out += (" (your turn reached the output limit while writing this call, so its arguments were cut off and "
-                    "nothing ran; write long content in smaller parts, e.g. write_file a first part, then append the rest from the terminal)")
+                    "nothing ran; write long content in smaller parts, " + ("e.g. write_file a first part, then append the rest from the terminal)"
+                    if any(t["function"]["name"] == "write_file" for t in s.tools) else "e.g. append it to the file in several terminal calls)"))
         elif isinstance(exc, json.JSONDecodeError):
             out += " (the call's arguments were not valid JSON; it is shown with {} in your history)"
     return args, out, finished, round(time.monotonic() - started, 3), held_finish

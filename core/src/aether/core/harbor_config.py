@@ -166,6 +166,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         **state_service.settings(lambda name, modes, unset: _choice(environ, name, modes, unset), REPL_MODES, FACTS_MODES),
         image_region=_choice(environ, IMAGE_REGION_ENV, REPL_MODES, "off") == "on",
         image_compare=_choice(environ, IMAGE_COMPARE_ENV, REPL_MODES, "off") == "on",
+        toolset=_choice(environ, "AETHER_CORE_TOOLSET", ("full", "minimal"), "full"),  # tool screen T0
         image_effort=_choice(environ, "AETHER_CORE_IMAGE_EFFORT", ("", "low", "medium", "high", "xhigh"), ""))
 
 

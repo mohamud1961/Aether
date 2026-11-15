@@ -32,6 +32,7 @@ class CoreConfig:
     control_dir: str = CONTROL_DIR  # where terminals and the REPL keep their files in the sandbox
     make_clone: Callable[[Environment], Awaitable[Any]] | None = None  # tests inject a clone; default docker
     parallel_reads: bool = False  # opt-in: bounded contiguous read_file batches only
+    toolset: str = "full"  # tool-screen arm: "minimal" offers only terminal (+ wait if on) and finish, no file tools
     verify: bool = False  # one independent check of the first finish, in a fresh context on a clone (see verify)
     self_check: bool = (
         False  # the self-check paragraph in the system prompt (tools.SELF_CHECK_DOC)

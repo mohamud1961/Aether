@@ -150,6 +150,7 @@ async def run_agent(
                 history=config.context == "clm",
                 verdict=config.role == VERIFIER_ROLE,
                 terminal_events=config.terminal_events and config.role == "worker",
+                file_tools=config.toolset != "minimal",
             )
             if getattr(config, "mcp_servers", ()) and config.role == "worker":
                 from . import mcp
@@ -199,6 +200,7 @@ async def run_agent(
                         hygiene=config.hygiene,
                         working=getattr(config, "working", "on"),
                         notes=config.clm.notes_voice,
+                        file_tools=config.toolset != "minimal",
                     )
                     + (runstate.STATE_DOC if s.state else "")
                     + (facts_projection.POLICY if s.facts_timeline else ""),
