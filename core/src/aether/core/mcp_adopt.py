@@ -10,6 +10,12 @@ The requests are rebuilt from the session directory (operations.py records, the 
   continued here): tracked again with its identity, so its answer is shown at the next use and an identical request
   attaches to it instead of being sent again;
 - ``req.tmp.<id>`` never published: its token is taken as ``revoked``, so the daemon never sends it.
+
+When the recorded daemon has ended (A11), the session is not adopted but read back before a new client starts, so a
+controller restart that coincides with a client death loses nothing: an answer the dead client wrote and nobody saw is
+shown; a request it never took is cancelled for certain; one it took without answering is stated as effect unknown,
+and its idempotency key (A14) is kept for an identical retry. Each is marked delivered so a later controller does not
+state it again.
 """
 
 from __future__ import annotations
@@ -79,30 +85,71 @@ async def adopt(mcp, name: str) -> str | None:
         alive = await same_process(mcp.env, owner)
     if alive is None:
         raise RuntimeError(f"whether MCP server {name}'s client is alive could not be observed; nothing was changed")
-    if not alive:
-        return None
     sent = sorted(int(m.group(1)) for m in re.finditer(r"^req_(\d+)\.json$", listing, re.M))
     staged = sorted(int(m.group(1)) for m in re.finditer(r"^req\.tmp\.(\d+)$", listing, re.M))
     mcp.seq = max([mcp.seq, *sent, *staged])
     for ident in staged:
         if ident not in sent:
             await run(mcp.env, f"cd {q(d)} && ln -s {operations.REVOKED} start_{ident} 2>/dev/null; true", timeout_s=10)
+    unseen = []
     for ident in sent:
         records = await operations.observe(mcp.env, operations.resolve_script(d, ident, revoke=False), ("__AETHER_OP__",),
                                            f"MCP request #{ident}'s records")
         parsed = operations.parse(records)
         if parsed is None or operations.seen(parsed[2], mcp.conversation):
             continue
-        body = await operations.observe(mcp.env, f"cat {q(f'{d}/req_{ident}.json')} 2>/dev/null; echo; echo __REQ__",
-                                        ("__REQ__",), f"MCP request #{ident}")
-        try:
-            request = json.loads(body.rpartition("__REQ__")[0])
-        except ValueError:
-            continue
-        params = request.get("params") or {}
-        action = "list" if request.get("method") == "tools/list" else "call"
-        tool = params.get("name") if action == "call" else None
-        key = json.dumps([action, tool, params.get("arguments") or {}], sort_keys=True)
-        kid = (params.get("_meta") or {}).get(IDEMPOTENCY_META)
-        mcp.ops[ident] = {"server": name, "key": key, "tool": tool, "action": action, "published": True, "kid": kid}
+        if (op := await _request(mcp, name, d, ident)) is not None:
+            unseen.append((ident, op))
+    if not alive:
+        await _read_back(mcp, name, d, unseen)
+        return None
+    for ident, op in unseen:
+        mcp.ops[ident] = op
     return d
+
+
+async def _request(mcp, name: str, d: str, ident: int) -> dict | None:
+    """The tracked-operation entry rebuilt from ``req_<ident>.json``, or None when it cannot be read."""
+    body = await operations.observe(mcp.env, f"cat {shlex.quote(f'{d}/req_{ident}.json')} 2>/dev/null; echo; echo __REQ__",
+                                    ("__REQ__",), f"MCP request #{ident}")
+    try:
+        request = json.loads(body.rpartition("__REQ__")[0])
+    except ValueError:
+        return None
+    params = request.get("params") or {}
+    action = "list" if request.get("method") == "tools/list" else "call"
+    tool = params.get("name") if action == "call" else None
+    key = json.dumps([action, tool, params.get("arguments") or {}], sort_keys=True)
+    kid = (params.get("_meta") or {}).get(IDEMPOTENCY_META)
+    return {"server": name, "key": key, "tool": tool, "action": action, "published": True, "kid": kid}
+
+
+async def _read_back(mcp, name: str, d: str, unseen: list[tuple[int, dict]]) -> None:
+    """Resolve the unseen requests of a session whose client has ended (A11); the facts are shown at the next use."""
+    q, notes = shlex.quote, []
+    for ident, op in unseen:
+        what = f"MCP request #{ident} ({op['tool'] or op['action']}) of an earlier controller"
+        got = await operations.observe(mcp.env, f"cd {q(d)} 2>/dev/null || {{ echo __NODIR__; exit 0; }}; "
+                                       f"cat resp_{ident}.json 2>/dev/null; echo; echo __SEP__; "
+                                       f"ln -s {operations.REVOKED} start_{ident} 2>/dev/null; readlink start_{ident}; "
+                                       "echo __END__", ("__NODIR__", "__END__"), what)
+        reply, _, token = got.partition("__SEP__\n")
+        token = token.replace("__END__", "").strip()
+        if reply.strip():
+            mcp.ops[ident] = op
+            notes.append(f"[{what} was answered before its client ended, and not shown before:]\n"
+                         + await mcp._finish(d, ident, json.loads(reply), 0.0))
+            continue
+        if token == operations.REVOKED:
+            notes.append(f"[{what} was never sent: its client ended before taking it, and it is now cancelled]")
+        else:
+            if op.get("kid"):
+                mcp.unknown_keys[op["key"]] = (op["kid"], ident)
+            mcp.calls.append({"server": name, "action": op["action"], "tool": op["tool"], "error": True, "s": 0.0})
+            notes.append(f"[{what} was taken by its client, which ended before any answer: the request may have "
+                         "reached the server, so its effect is unknown. Check the result before calling again.]"
+                         if token == operations.RUN else
+                         f"[{what}: its records could not be read after its client ended; its effect is unknown]")
+        await run(mcp.env, operations.mark_delivered(d, ident, mcp.delivery_tag()), timeout_s=10)
+    if notes:
+        mcp.adopted_notes[name] = "\n".join(notes) + "\n"
