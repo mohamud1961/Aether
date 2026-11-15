@@ -136,6 +136,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         env_map=_choice(environ, "AETHER_CORE_ENV_MAP", REPL_MODES, "off") == "on",
         rehydrate=_choice(environ, "AETHER_CORE_REHYDRATE", REPL_MODES, "off") == "on",
         workspace_search=_choice(environ, "AETHER_CORE_WORKSPACE_SEARCH", REPL_MODES, "off") == "on",
+        check_versions=_choice(environ, "AETHER_CORE_CHECK_VERSIONS", REPL_MODES, "off") == "on",
         completion_notices=_choice(environ, "AETHER_CORE_COMPLETION_NOTICES", REPL_MODES, "off") == "on",
         stable_facts=_choice(environ, "AETHER_CORE_STABLE_FACTS", REPL_MODES, "off") == "on",
         terminal_result_delivery=_choice(environ, "AETHER_CORE_TERMINAL_RESULT_DELIVERY", REPL_MODES, "off") == "on",

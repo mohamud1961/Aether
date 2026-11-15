@@ -68,7 +68,7 @@ class _Session:
         )
         self.facts = (facts_pull.make(self.env, workdir, self.remaining, trace, terminal_state=self.terminals.observed_session,
                                      python_state=lambda: self.repl.observed_state(), pull=config.facts_pull, v2=config.facts_v2,
-                                     control_dir=config.control_dir) if config.managed_facts and config.role == "worker" else None)
+                                     control_dir=config.control_dir, versions=config.check_versions) if config.managed_facts and config.role == "worker" else None)
         self.facts_pinned_index = None
         source = "state-v2" if config.facts_v2 else "managed-facts"
         self.facts_timeline = (facts_projection.FactsTimeline(source)

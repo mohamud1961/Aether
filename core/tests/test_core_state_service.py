@@ -206,3 +206,69 @@ def test_a_server_started_without_an_install_word_updates_the_ports_line_at_once
     monkeypatch.setattr(svc, "_ports", lambda: calls.append(1) or asyncio.sleep(0, "x"))
     asyncio.run(svc.after_action(3, "edit", {"path": "a"}, ""))
     assert calls == []
+
+
+gnu_find = pytest.mark.skipif(subprocess.run(["find", ".", "-maxdepth", "0", "-printf", ""], capture_output=True).returncode != 0,
+                              reason="E15 versions are nanosecond-resolution only with GNU find -printf")
+
+
+def _versioned(tmp_path, app, versions):
+    env, ctl = LocalEnv(tmp_path), str(tmp_path / "ctl")
+    asyncio.run(start_copy.take(env, str(app), ctl))
+    rows = []
+    svc = state_service.StateService(env, str(app), lambda: 300.0, lambda event, **row: rows.append(row),
+                                     control_dir=ctl, versions=versions)
+    asyncio.run(svc.start())
+    step = iter(range(1, 1000))
+    return rows, lambda: asyncio.run(svc.after_action(next(step), "terminal", {"input": "true"}, ""))
+
+
+def _version(row):
+    return next((x[2:] for x in row["out"] if x.startswith("V ")), None)
+
+
+@gnu_find
+def test_e15_versions_are_off_by_default_and_never_shown(tmp_path):
+    app = _app(tmp_path)
+    rows, act = _versioned(tmp_path, app, False)
+    plain = act()
+    assert all(_version(r) is None for r in rows)
+    rows_on, act_on = _versioned(tmp_path / "on", _app_at(tmp_path / "on"), True)
+    shown = act_on()
+    assert shown == plain and "V " not in shown and _version(rows_on[-1]).startswith("ns ")  # GNU find here
+
+
+def _app_at(root):
+    root.mkdir()
+    return _app(root)
+
+
+@gnu_find
+def test_e15_version_is_stable_without_a_change_and_moves_on_every_write(tmp_path):
+    app = _app(tmp_path)
+    rows, act = _versioned(tmp_path, app, True)
+    act(); act()
+    first, second = _version(rows[-2]), _version(rows[-1])
+    assert first == second
+    (app / "data.txt").write_text("abd\n")  # same size
+    act()
+    assert _version(rows[-1]) != second
+
+
+@gnu_find
+def test_e15_known_bad_a_same_size_rewrite_with_restored_mtime_still_moves_the_version(tmp_path):
+    app = _app(tmp_path)
+    rows, act = _versioned(tmp_path, app, True)
+    act()
+    before = _version(rows[-1])
+    path = app / "data.txt"
+    stat = path.stat()
+    path.write_text("xyz\n")
+    os.utime(path, (stat.st_atime, stat.st_mtime))
+    act()
+    assert _version(rows[-1]) != before
+
+
+def test_e15_switch_maps_to_the_config():
+    assert build_config(environ=BASE).check_versions is False
+    assert build_config(environ={**BASE, "AETHER_CORE_CHECK_VERSIONS": "on"}).check_versions is True

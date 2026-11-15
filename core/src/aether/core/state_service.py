@@ -110,7 +110,7 @@ if [ "$MODE" = verify ]; then
   cp "$S/full" "$S/differs"
 fi
 cp "$S/cur.tsv" "$S/prev.tsv"; echo "$now" > "$S/t_prev"
-added=$(awk 'FILENAME==ARGV[1] {{ s[$0]=1; next }} !($0 in s)' "$S/start.paths" "$S/cur.paths" | wc -l | tr -d ' ')
+{versions}added=$(awk 'FILENAME==ARGV[1] {{ s[$0]=1; next }} !($0 in s)' "$S/start.paths" "$S/cur.paths" | wc -l | tr -d ' ')
 removed=$(awk 'FILENAME==ARGV[1] {{ c[$0]=1; next }} !($0 in c)' "$S/cur.paths" "$S/start.paths" | wc -l | tr -d ' ')
 echo "F +$added -$removed ~$(wc -l < "$S/differs" | tr -d ' ')"
 if [ -d "$C/.git" ] && command -v git >/dev/null 2>&1; then
@@ -125,6 +125,16 @@ if [ -d "$C/.git" ] && command -v git >/dev/null 2>&1; then
 fi
 """
 
+
+# E15 (switch AETHER_CORE_CHECK_VERSIONS, trace only): a workspace version per action. GNU find gives nanosecond
+# mtime/ctime, so a same-size rewrite in the same second still moves it; without -printf (BSD, some busybox) the
+# version falls back to the step's one-second stat listing ("V s"), which can miss such a rewrite. Inserted into the
+# step script only when the switch is on, so the stock script is byte-identical.
+_VERSION = r"""if ( cd "$W" && find . -maxdepth 0 -printf '' ) >/dev/null 2>&1; then
+  v=$( (cd "$W" && find . -path ./.git -prune -o ! -type d -printf '%P|%s|%T@|%C@|%i\n') 2>/dev/null | sort | cksum )
+  echo "V ns ${v%% *}"
+else echo "V s $(cksum < "$S/cur.tsv" | cut -d' ' -f1)"; fi
+"""
 
 def _copy_path(workdir: str, control_dir: str) -> str:
     return posixpath.join(control_dir, "start", posixpath.basename(workdir.rstrip("/")) or "root")  # as start_copy
@@ -176,8 +186,9 @@ class StateService:
     """The loop's managed-facts interface: start() -> pinned block, after_action() -> one line."""
 
     def __init__(self, env: Environment, workdir: str, remaining: Callable[[], float], trace: Callable[..., None],
-                 *, control_dir: str, **_: Any) -> None:
+                 *, control_dir: str, versions: bool = False, **_: Any) -> None:
         self.env, self.workdir, self.remaining, self.trace = env, workdir, remaining, trace
+        self.versions = versions  # E15: trace a workspace version (stat fingerprint) per action; never shown
         self.copy, self.state_dir = _copy_path(workdir, control_dir), posixpath.join(control_dir, "state2")
         self.initial_workspace = InitialWorkspace()  # the loop's continuation checkpoint; this service keeps none
         self.context_changed = False
@@ -225,7 +236,8 @@ class StateService:
 
     async def _step(self, mode: str) -> tuple[list[str], float]:
         script = _STEP.format(wd=shlex.quote(self.workdir.rstrip("/") or "/"), copy=shlex.quote(self.copy),
-                              state=shlex.quote(self.state_dir), mode=mode, max_files=MAX_FILES)
+                              state=shlex.quote(self.state_dir), mode=mode, max_files=MAX_FILES,
+                              versions=_VERSION if self.versions else "")
         started = time.monotonic()
         try:
             result = await run(self.env, script, timeout_s=max(1, min(30, int(self.remaining() - 1))))

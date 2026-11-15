@@ -115,10 +115,10 @@ print(json.dumps({'start_head': baseline}))
 """
 
 
-def make(env, workdir, remaining, trace, *, terminal_state, python_state, pull, control_dir, v2=False):
+def make(env, workdir, remaining, trace, *, terminal_state, python_state, pull, control_dir, v2=False, versions=False):
     if v2:
         from .state_service import StateService
-        return StateService(env, workdir, remaining, trace, control_dir=control_dir)
+        return StateService(env, workdir, remaining, trace, control_dir=control_dir, versions=versions)
     cls = PullFacts if pull else Facts
     extra = {"control_dir": control_dir} if pull else {}
     return cls(env, workdir, remaining, trace, terminal_state=terminal_state,
