@@ -10,7 +10,13 @@ from dataclasses import dataclass
 MIRROR_PATH = "/tmp/.aether/ctx/LIVE_CTX.txt"
 HISTORY_PATH = "/tmp/.aether/ctx/HISTORY.txt"
 NOTES_VOICES = ("own", "legacy")
-CHECKPOINT_POLICIES = ("summary", "window")
+CHECKPOINT_POLICIES = ("summary", "window", "stop")
+# AETHER_CORE_CLM_PROFILE=meta: Meta's published clm_harness defaults (README, read 16 Nov; clean-room, its licence is
+# CC BY-NC 4.0): nudges at 25/50/75%, the adaptive urgent nudge on every turn near the limit, roll back the newest turns
+# until 2048 tokens are free (up to 50 times), no summary; still over after the rollbacks: one final turn, then stop.
+CLM_PROFILES = ("core", "meta")
+META_PROFILE = {"nudge_ratios": (0.25, 0.5, 0.75), "urgent_every_turns": 1, "max_rollbacks": 50,
+                "rollback_margin_tokens": 2_048, "checkpoint_policy": "stop"}
 
 
 @dataclass
@@ -19,6 +25,8 @@ class ClmSettings:
     reserve_tokens: int = 2_048
     nudge_ratios: tuple[float, ...] = (0.5, 0.75)
     max_rollbacks: int = 0
+    rollback_margin_tokens: int = 0  # after a rollback, keep rolling back until this many tokens are free (meta: 2048)
+    urgent_every_turns: int = 3  # C2 row 1: the urgent nudge fired on 10 consecutive turns (meta: 1, every turn)
     keep_recent_tokens: int = 8_000
     # Experimental: cut complete old turns without an auxiliary summary call.
     checkpoint_policy: str = "summary"

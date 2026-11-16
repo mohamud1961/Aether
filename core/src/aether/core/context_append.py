@@ -23,6 +23,10 @@ CHARS_PER_TOKEN = 4.0
 Summarise = Callable[..., Awaitable[tuple[str, dict[str, Any]]]]
 
 
+class IndexSaveError(RuntimeError):
+    """A cut-away tool result could not be saved: the cut is not made, since the summary would be its only copy."""
+
+
 @dataclass(frozen=True)
 class AppendPolicy:
     name: str
@@ -128,7 +132,10 @@ class AppendContext:
         if self.policy.index:
             if save is None:
                 raise ValueError(f"append policy {self.policy.name} saves an index but no writer was given")
-            await self._save_index(messages[self.kept : cut], self.kept, save, save_dir)
+            try:
+                await self._save_index(messages[self.kept : cut], self.kept, save, save_dir)
+            except Exception as exc:
+                raise IndexSaveError(f"{type(exc).__name__}: {exc}") from exc
         self.summary, self.kept, self.cuts = text, cut, self.cuts + 1
         trace("context_append_cut", ok=True, policy=self.policy.name, tokens_before=before,
               tokens=self.tokens(messages), limit=self.limit, kept_from=cut, summary_chars=len(text))

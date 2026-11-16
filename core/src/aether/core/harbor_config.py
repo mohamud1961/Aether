@@ -8,6 +8,7 @@ from typing import Any, Mapping
 
 from . import fork
 from .clm import CHECKPOINT_POLICIES, NOTES_VOICES, REPLAY_MODES, ClmSettings
+from .clm_settings import CLM_PROFILES, META_PROFILE
 from .loop import CONTEXT_MODES, CoreConfig
 from .oversight import ReviewPlan
 from .diffcheck import DIFFCHECK_ENV, DIFFCHECK_MODES
@@ -127,7 +128,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         clm=ClmSettings(
             replay_reasoning=_replay(environ, context),
             **_budget(environ),
-            checkpoint_policy=_choice(environ, CHECKPOINT_POLICY_ENV, CHECKPOINT_POLICIES, "summary"),
+            **_clm_profile(environ),
             notes_voice=_choice(environ, NOTES_ENV, NOTES_VOICES, "legacy"),
             attest_original_history=(
                 _choice(environ, CONTEXT_EVIDENCE_ENV, CONTEXT_EVIDENCE_MODES, "off") != "off"
@@ -148,9 +149,9 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         workspace_search=_choice(environ, "AETHER_CORE_WORKSPACE_SEARCH", REPL_MODES, "off") == "on",
         check_versions=_choice(environ, "AETHER_CORE_CHECK_VERSIONS", REPL_MODES, "off") == "on",
         session_log=_choice(environ, "AETHER_CORE_SESSION_LOG", REPL_MODES, "off") == "on",
+        completion_notices=_choice(environ, "AETHER_CORE_COMPLETION_NOTICES", REPL_MODES, "off") == "on",
         auto_wait=_choice(environ, "AETHER_CORE_AUTO_WAIT", REPL_MODES, "off") == "on",
         auto_wait_grace_s=float(_choice(environ, "AETHER_CORE_AUTO_WAIT_GRACE", ("30", "1"), "30")),
-        completion_notices=_choice(environ, "AETHER_CORE_COMPLETION_NOTICES", REPL_MODES, "off") == "on",
         # Default on since 16 Nov (lean screen F + H2 holdout): facts appended, never rewritten in place; the
         # rewrites put 10-12% of input on the uncached rate. Cost 0.52x (screen) and 0.62x (holdout), passes equal.
         stable_facts=_choice(environ, "AETHER_CORE_STABLE_FACTS", REPL_MODES, "on") == "on",
@@ -256,6 +257,19 @@ def _replay(environ: Mapping[str, str], context: str) -> str:
     if context == "append" and value not in ("all", "none"):  # append never edits its history: all or nothing
         raise ConfigError(f"{CONTEXT_ENV}=append needs {REASONING_ENV}=all or none")
     return value
+
+
+def _clm_profile(environ: Mapping[str, str]) -> dict:
+    """AETHER_CORE_CLM_PROFILE: "core" (default) keeps Core's CLM; "meta" applies Meta's published defaults
+    (clm_settings.META_PROFILE). The meta profile fixes its own checkpoint policy, so setting both is refused."""
+    profile = _choice(environ, "AETHER_CORE_CLM_PROFILE", CLM_PROFILES, "core")
+    if profile == "core":
+        return {"checkpoint_policy": _choice(environ, CHECKPOINT_POLICY_ENV, CHECKPOINT_POLICIES, "summary")}
+    if environ.get(CHECKPOINT_POLICY_ENV, "").strip():
+        raise ConfigError(f"AETHER_CORE_CLM_PROFILE=meta sets its own checkpoint policy; unset {CHECKPOINT_POLICY_ENV}")
+    if environ.get(CONTEXT_ENV, "").strip() != "clm":
+        raise ConfigError("AETHER_CORE_CLM_PROFILE=meta needs AETHER_CORE_CONTEXT=clm")
+    return dict(META_PROFILE)
 
 
 def _budget(environ: Mapping[str, str]) -> dict:

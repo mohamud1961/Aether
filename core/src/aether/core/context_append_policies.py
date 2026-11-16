@@ -35,4 +35,8 @@ POLICIES: dict[str, AppendPolicy] = {
     # Evidence-aware hybrid (E19): a smaller window, and every cut-away tool result saved as a file and indexed.
     "core32idx": AppendPolicy("core32idx", _fixed(32_000), 12_000, _core_summary, _core_insert,
                               "E19 hybrid", index=True),
+    # Lossless memory hierarchy (16 Nov): append only; one rare large cut near the provider's window; every cut-away
+    # tool result saved as a file and listed; read_history and the files stay the source of truth.
+    "lossless": AppendPolicy("lossless", lambda window: int(window * 0.85), 40_000, _core_summary, _core_insert,
+                             "16 Nov lossless hierarchy", index=True),
 }

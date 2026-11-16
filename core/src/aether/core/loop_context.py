@@ -93,18 +93,43 @@ async def _cut_window(s: _Session) -> bool:
     return True
 
 
+def _final_turn(s: _Session) -> bool:
+    """checkpoint_policy "stop" (meta profile): over the limit with no rollback left, the model gets one final turn to
+    condense; still over at the next request, the run stops as a context error. No summary is ever written."""
+    clm = s.clm
+    if "context_final_turn" in s.result.extras:
+        s.trace("context_final_turn", phase="stop", tokens=clm.held(), limit=clm.settings.limit)
+        s.result.status, s.result.error = "context_error", "context is over its limit after its final turn"
+        return False
+    s.result.extras["context_final_turn"] = s.result.steps
+    s.trace("context_final_turn", phase="given", tokens=clm.held(), limit=clm.settings.limit)
+    _attach(clm.editable, f"[context limit] {clm.held()} of {clm.settings.limit} tokens used and no turn is left to "
+            f"roll back. Condense {clm.settings.mirror_path} in this turn: if the context is still over its limit at "
+            "the next turn, the run stops.")
+    return True
+
+
 async def _fit_context(s: _Session) -> bool:
     """CLM budget step before a request: roll back, or checkpoint, until it fits; then nudge."""
     clm = s.clm
     if s.rehydrate_due:
         s.rehydrate_due = False
         await _rehydrate(s, "native_compaction")
+    if not clm.over_limit():
+        s.result.extras.pop("context_final_turn", None)  # the model fitted its context again
     while clm.over_limit():
         if clm.can_roll_back():
             note = clm.roll_back(await _keep_history(s))
+            margin = clm.settings.rollback_margin_tokens  # meta: roll back until this many tokens are free
+            while margin and clm.held() > clm.settings.limit - margin and clm.can_roll_back():
+                note = clm.roll_back(await _keep_history(s))
             s.trace("context_rollback", tokens=clm.tokens(), note=note)
             _restore_facts(s)
             continue
+        if clm.settings.checkpoint_policy == "stop":
+            if not _final_turn(s):
+                return False
+            break
         if clm.settings.checkpoint_policy == "window":
             if not await _cut_window(s):
                 return False
@@ -189,7 +214,8 @@ async def _fit_append(s: _Session) -> bool:
         if isinstance(exc, ProviderError) and exc.deadline:
             s.result.status = "timeout"
         else:
-            s.result.status, s.result.error = "context_error", f"append summary failed: {type(exc).__name__}: {exc}"
+            stage = "index save" if type(exc).__name__ == "IndexSaveError" else "summary"
+            s.result.status, s.result.error = "context_error", f"append {stage} failed: {type(exc).__name__}: {exc}"
         return False
     for key, value in usage.items():
         s.result.sub_usage[key] = s.result.sub_usage.get(key, 0) + value

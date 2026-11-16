@@ -267,14 +267,17 @@ class ClmContext(ClmMirror):
         largest = max(self._recent_outputs or [0]) / self.chars_per_token
         self._turn += 1
         outside = self._replayed_reasoning()[1]  # replayed reasoning: sent, but outside the editable budget
-        replacement = ("removed without a summary" if self.settings.checkpoint_policy == "window"
-                       else "replaced by a summary")
+        policy = self.settings.checkpoint_policy
+        fate = {"window": "older turns are removed without a summary", "stop": "your newest turn is rolled back"}.get(
+            policy, "older turns are replaced by a summary")
+        goes_on = ("A run that still cannot fit after that stops: this is not a time or turn limit."
+                   if policy == "stop" else "The run continues after that: this is not a time or turn limit.")
         whole = (
             f" The whole request is about {used + outside} tokens: {outside} of them are your earlier reasoning, "
             "sent back as well but outside this budget."
         ) if outside else ""
         if used > limit // 2 and room < max(0.10 * limit, 2 * largest):
-            if self._turn - self._last_urgent < URGENT_EVERY_TURNS:
+            if self._turn - self._last_urgent < getattr(self.settings, "urgent_every_turns", URGENT_EVERY_TURNS):
                 return ""
             self._last_urgent = self._turn
             self.stats.urgent_nudges += 1
@@ -283,8 +286,7 @@ class ClmContext(ClmMirror):
             # replayed reasoning that made up most of the request.
             return (
                 f"[context: urgent] {used} of {limit} tokens of your editable context used; about {room} left before "
-                f"older turns are {replacement}. The run continues after that: this is not a time or turn "
-                f"limit.{whole} Condense {self.settings.mirror_path} now (keep facts, paths, decisions and open "
+                f"{fate}. {goes_on}{whole} Condense {self.settings.mirror_path} now (keep facts, paths, decisions and open "
                 "problems; drop the rest), and send large outputs to files instead of the conversation."
             )
         crossed = [r for r in self._armed if ratio >= r]
@@ -300,8 +302,8 @@ class ClmContext(ClmMirror):
             f"It is mirrored at {self.settings.mirror_path}; condense it when convenient by editing that file (keep what "
             "you still need, drop the rest). This shrinks future context; the model/tool turn still uses time and tokens."
             if top < 0.75
-            else f"Condense {self.settings.mirror_path} soon: above the limit older turns are {replacement} and the "
-            "run continues."
+            else f"Condense {self.settings.mirror_path} soon: above the limit {fate}"
+            + (f". {goes_on}" if policy == "stop" else " and the run continues.")
         )
 
     def _rearm(self, ratio: float | None = None) -> None:
