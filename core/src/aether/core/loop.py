@@ -14,7 +14,7 @@ import shlex
 import time
 from typing import Any, Awaitable, Callable
 
-from . import cut_outputs, diffcheck, facts, facts_projection, facts_pull, finish_report, loop_tools, runstate
+from . import auto_wait, cut_outputs, diffcheck, facts, facts_projection, facts_pull, finish_report, loop_tools, runstate
 from . import receipt as finish_receipt
 from .clm import ClmContext
 from .context import project, size_chars
@@ -173,7 +173,8 @@ async def run_agent(
                         mcp_servers=tuple(x["name"] for x in getattr(config, "mcp_servers", ())),
                     )
                     + (runstate.STATE_DOC if s.state else "")
-                    + (facts_projection.POLICY if s.facts_timeline else ""),
+                    + (facts_projection.POLICY if s.facts_timeline else "")
+                    + (auto_wait.PROMPT if getattr(config, "auto_wait", False) else ""),
                 },
                 *step0.task_messages(
                     getattr(config, "step0_file", ""),
@@ -400,6 +401,12 @@ async def _loop(s: _Session) -> None:
             s.rehydrate_due = True
         if s.clm:
             s.clm.note_reasoning(assistant, turn.usage.get("reasoning"))
+        if not turn.tool_calls and getattr(s.config, "auto_wait", False):  # a plain reply while work runs = wait
+            woke = await auto_wait.sleep(s)
+            if woke is not None:
+                idle_turns = 0
+                _append(s, {"role": "user", "content": woke + "\n" + s.clock()})
+                continue
         if not turn.tool_calls:
             # A turn the output limit cut off is work in progress, not idleness; the time limit bounds it (D1
             # regex-chess: three 32k-token thoughts in a row ended the run with 30 minutes left).

@@ -87,15 +87,16 @@ async def others_finished(s, seen: set[tuple[str, int]]) -> list[dict]:
     return found
 
 
-async def before_model(s) -> str:
-    """Notice lines for the tool result just produced (empty when nothing newly finished)."""
+async def before_model(s, *, deliver: bool | None = None, others: bool | None = None) -> str:
+    """Notice lines for the tool result just produced (empty when nothing newly finished). auto_wait passes
+    deliver/others explicitly; otherwise the configured switches decide."""
     seen = s.result.extras.setdefault("completion_notices_seen", [])
     try:
         found = await finished(s.terminals, {(row["owner"], row["sequence"]) for row in seen})
     except Exception as exc:  # substrate failure: no notice, recorded honestly
         s.trace("completion_notice_error", error=f"{type(exc).__name__}: {exc}")
         return ""
-    deliver = s.config.terminal_result_delivery
+    deliver = s.config.terminal_result_delivery if deliver is None else deliver
     if deliver:
         found = found[:MAX_DELIVERED_PER_BOUNDARY]
     lines = []
@@ -121,8 +122,9 @@ async def before_model(s) -> str:
             lines.append(LINE.format(name=name, seq=seq, exit=row["exit"]))
         seen.append({**row, "step": s.result.steps})
         s.trace("completion_notice", **row, step=s.result.steps)
+    look_others = getattr(s.config, "completion_notices", False) if others is None else others
     others = []  # the result-delivery arm alone keeps its terminal-only behaviour
-    if getattr(s.config, "completion_notices", False):
+    if look_others:
         try:
             others = await others_finished(s, {(row["owner"], row["sequence"]) for row in seen})
         except Exception as exc:  # substrate failure: no notice, recorded honestly

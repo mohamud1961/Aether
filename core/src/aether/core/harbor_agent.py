@@ -118,7 +118,7 @@ def build_provider(
     params = {
         **(sampling if shape == "chat" else {}),
         "reasoning_effort": None if effort == "none" else effort,  # none: never sent (no effort levels)
-        "tool_choice": "required",
+        "tool_choice": "auto" if environ.get("AETHER_CORE_AUTO_WAIT") == "on" else "required",  # auto_wait: a reply may wait
         "parallel_tool_calls": calls == "many" or parallel_reads,
     }
     log = CallLog(logs_dir / CALLS_FILE if logs_dir is not None else None)

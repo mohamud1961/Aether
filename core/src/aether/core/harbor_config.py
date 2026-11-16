@@ -148,6 +148,8 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         workspace_search=_choice(environ, "AETHER_CORE_WORKSPACE_SEARCH", REPL_MODES, "off") == "on",
         check_versions=_choice(environ, "AETHER_CORE_CHECK_VERSIONS", REPL_MODES, "off") == "on",
         session_log=_choice(environ, "AETHER_CORE_SESSION_LOG", REPL_MODES, "off") == "on",
+        auto_wait=_choice(environ, "AETHER_CORE_AUTO_WAIT", REPL_MODES, "off") == "on",
+        auto_wait_grace_s=float(_choice(environ, "AETHER_CORE_AUTO_WAIT_GRACE", ("30", "1"), "30")),
         completion_notices=_choice(environ, "AETHER_CORE_COMPLETION_NOTICES", REPL_MODES, "off") == "on",
         # Default on since 16 Nov (lean screen F + H2 holdout): facts appended, never rewritten in place; the
         # rewrites put 10-12% of input on the uncached rate. Cost 0.52x (screen) and 0.62x (holdout), passes equal.

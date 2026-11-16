@@ -12,7 +12,7 @@ from . import facts, finish_report, images
 from .context import SAVE_OVER, SAVED_NOTE, saved_path
 from .env import get_bytes, put_bytes, run
 from .provider import parse_arguments
-from . import completion_notice, loop_mirror, operations, stated_use
+from . import auto_wait, completion_notice, loop_mirror, operations, stated_use
 from .tools import validate_call
 from .loop_context import _keep_history
 from .loop_finish import _finish, _with_state
@@ -257,13 +257,13 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
     if name == "state" and s.state:
         return await s.state.act(s.env, args, s.remaining()), False
     if name == "terminal":
-        return await s.terminals.use(
+        return auto_wait.mark_running(s.config, await s.terminals.use(
             name=str(args.get("name") or "main"),
             input=str(args.get("input", "")),
             mode=str(args.get("mode") or "command"),
-            wait_s=float(args.get("wait_s", 30)),
+            wait_s=auto_wait.grace(s.config, float(args.get("wait_s", 30))),
             interrupt=bool(args.get("interrupt")),
-        ), False
+        )), False
     if name == "terminal_wait":
         outcome = await s.terminals.wait_events(
             args["names"], mode=args.get("mode", "any"), wait_s=args.get("wait_s", 300),

@@ -101,6 +101,8 @@ class CoreConfig:
     skills_dir: str | None = None  # opt-in (AETHER_CORE_SKILLS): the task-declared skills directory to list at start
     env_map: bool = False  # opt-in: repositories and listening services, measured once at start (env_map)
     rehydrate: bool = False  # opt-in (E18 K2): after a checkpoint or provider compaction, changed files read again
+    auto_wait: bool = False  # opt-in (auto_wait): a reply with no tool call while work runs = sleep until it finishes
+    auto_wait_grace_s: float = 30.0  # auto_wait: a terminal command's blocking window cap (Unreal: 1)
     completion_notices: bool = False  # opt-in: one line when a background terminal command finishes (completion_notice)
     terminal_result_delivery: bool = False  # opt-in: collect completed terminal output at a tool boundary
     workspace_brief: bool = False
