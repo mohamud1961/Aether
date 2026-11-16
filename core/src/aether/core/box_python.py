@@ -19,26 +19,44 @@ ROOT = "/opt/aether-python"
 STAGE = "/tmp/.aether-python.tar.gz"
 
 
+REPL_PYTHON_ENV = "AETHER_CORE_REPL_PYTHON"  # host path of the same tarball for the REPL; empty (default): no install
+REPL_ROOT = "/tmp/.aether/python"  # outside PATH: the task's own environment keeps having no python3
+
+
+async def install(env: Environment, tarball: str, root: str) -> tuple[str, str]:
+    """(interpreter path, version) after unpacking the relocatable CPython at root; ("", why) when it cannot."""
+    q = shlex.quote
+    probe = f"{q(root)}/bin/python3 -c 'import sys; print(\"%d.%d.%d\" % sys.version_info[:3])'"
+    present = await run(env, probe, timeout_s=30)  # an earlier controller's install is reused, never overwritten
+    if present.code == 0 and present.stdout.strip():
+        return f"{root}/bin/python3", present.stdout.strip()
+    if not os.path.isfile(tarball):
+        return "", f"relocatable python missing on the host ({tarball})"
+    upload = getattr(env, "upload_file", None)
+    if upload is None:
+        return "", "the container cannot receive files"
+    try:
+        await upload(tarball, STAGE)
+    except Exception as exc:  # reported to the caller, which states it
+        return "", f"copying python failed: {exc}"[:300]
+    command = f"mkdir -p {q(root)} && tar -xzf {q(STAGE)} -C {q(root)} --strip-components=1 && rm -f {q(STAGE)} && {probe}"
+    result = await run(env, command, timeout_s=180)
+    if result.code != 0:
+        return "", f"installing python failed: {(result.stderr or result.stdout)[-200:]}"
+    return f"{root}/bin/python3", result.stdout.strip()
+
+
 async def ensure(box: Environment, tarball: str) -> tuple[bool, str]:
     """(True, how) when python3 runs in the box, installing the harness's CPython if needed; else (False, why)."""
     if (await run(box, "command -v python3", timeout_s=30)).code == 0:
         return True, "task python3"
     if not tarball:
         return False, "no python3 in the task container"
-    if not os.path.isfile(tarball):
-        return False, f"no python3 in the task container; relocatable python missing on the host ({tarball})"
-    upload = getattr(box, "upload_file", None)
-    if upload is None:
-        return False, "no python3 in the task container; the box cannot receive files"
-    try:
-        await upload(tarball, STAGE)
-    except Exception as exc:  # an instrument: the run goes on without the check
-        return False, f"no python3 in the task container; copying python failed: {exc}"[:300]
+    path, how = await install(box, tarball, ROOT)
+    if not path:
+        return False, f"no python3 in the task container; {how}"
     q = shlex.quote
-    install = (f"mkdir -p {q(ROOT)} /usr/local/bin && tar -xzf {q(STAGE)} -C {q(ROOT)} --strip-components=1 && "
-               f"rm -f {q(STAGE)} && ln -sf {q(ROOT)}/bin/python3 /usr/local/bin/python3 && "
-               "python3 -c 'import sys; print(sys.version.split()[0])'")
-    result = await run(box, install, timeout_s=180)
+    result = await run(box, f"mkdir -p /usr/local/bin && ln -sf {q(path)} /usr/local/bin/python3", timeout_s=30)
     if result.code != 0:
-        return False, f"no python3 in the task container; installing python failed: {(result.stderr or result.stdout)[-200:]}"
-    return True, f"harness python {result.stdout.strip()}"
+        return False, f"no python3 in the task container; linking python failed: {(result.stderr or result.stdout)[-200:]}"
+    return True, f"harness python {how}"

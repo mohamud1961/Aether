@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import time
 import uuid
 from typing import Any, Awaitable, Callable
 
-from . import diffcheck, facts_probe, facts_projection, facts_pull, finish_report, runstate
+from . import box_python, diffcheck, facts_probe, facts_projection, facts_pull, finish_report, runstate
 from .clm import ClmContext
 from .clone import Clone
 from .env import DeadlineEnvironment, Environment, run
@@ -85,6 +86,7 @@ class _Session:
             base=f"{config.control_dir}/repl",
             track_operations=config.terminal_events,
             library=config.toolset == "python",
+            bundled_python=os.environ.get(box_python.REPL_PYTHON_ENV, ""),
         )
         self.oversight = Oversight(
             config.reviews, transport, call, timeout_s, control_dir=config.control_dir

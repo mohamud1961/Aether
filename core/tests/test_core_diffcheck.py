@@ -608,6 +608,11 @@ class BareBox(Box):
         if "tar -xzf" in command:
             self.commands.append(command)
             return SimpleNamespace(return_code=0, stdout="3.12.7\n", stderr="")
+        if command.startswith("/opt/aether-python/bin/python3 -c"):  # nothing installed yet
+            return SimpleNamespace(return_code=127, stdout="", stderr="not found")
+        if command.startswith("mkdir -p /usr/local/bin && ln -sf"):
+            self.commands.append(command)
+            return SimpleNamespace(return_code=0, stdout="", stderr="")
         return await super().exec(command, cwd, env, timeout_sec)
 
     async def upload_file(self, source_path, target_path):

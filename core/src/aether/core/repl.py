@@ -27,7 +27,7 @@ from .env import (
     run,
     stop_process_tree,
 )
-from . import operations, repl_adopt, repl_lib_src
+from . import box_python, operations, repl_adopt, repl_lib_src
 from .terminal import MAX_WAIT_S
 from .tool_validate import unsendable_text
 
@@ -51,6 +51,7 @@ class Repl:
         base: str = f"{CONTROL_DIR}/repl",
         track_operations: bool = False,
         library: bool = False,
+        bundled_python: str = "",
     ) -> None:
         self._env, self._workdir, self._remaining, self._llm = (
             env,
@@ -77,6 +78,9 @@ class Repl:
         self.pending = 0
         self.cursor = 0
         self.python = ""
+        # Host tarball of a relocatable CPython (AETHER_CORE_REPL_PYTHON): when the container has no python3, the
+        # REPL runs on it from box_python.REPL_ROOT (not on PATH) and says so; empty: no REPL on such images.
+        self.bundled_python, self.interpreter = bundled_python, "python3"
         self.llm_calls = 0
         self.llm_errors = 0
         self.generation = 0
@@ -95,12 +99,19 @@ class Repl:
             ("__NOPY__", "."), "whether the container has python3",
         )
         version = "" if "__NOPY__" in out else out.strip()
+        fact = ""
+        if not version and self.bundled_python:
+            path, how = await box_python.install(self._env, self.bundled_python, box_python.REPL_ROOT)
+            if path:
+                self.interpreter, version = path, ".".join(how.split(".")[:2])
+                fact = (f"[python REPL: the task container has no python3; this REPL runs on a harness-supplied "
+                        f"Python {how} at {path}, which is not on PATH, so shell commands still find no python3]\n")
         if not version:
             return ""
         if self.track_operations:
             note = await repl_adopt.adopt(self)
             if note is not None:
-                self.adopted_note = note + "\n"
+                self.adopted_note = fact + note + "\n"
                 return self.python
         await put_bytes(self._env, SERVER_SOURCE, f"{self.base}/server.py")
         if self.library:
@@ -108,7 +119,7 @@ class Repl:
         launch = (
             f"cd {q(self.base)} && rm -rf in out llm ops bash{'' if self.library else ' lib.py'} && mkdir -p in out llm && "
             f"if command -v setsid >/dev/null 2>&1; then S=setsid; else S=; fi; "
-            f"nohup $S python3 -u server.py {q(self.base)} {q(self._workdir)}{' ops' if self.track_operations else ''} "
+            f"nohup $S {q(self.interpreter)} -u server.py {q(self.base)} {q(self._workdir)}{' ops' if self.track_operations else ''} "
             "> server.log 2>&1 < /dev/null & "
             f"echo $!"
         )
@@ -119,6 +130,7 @@ class Repl:
                 f"python REPL launch failed: {(res.stderr or res.stdout).strip()[:300]}"
             )
         self.pid, self.python = int(pid[0]), version
+        self.adopted_note = fact
         self.unconfirmed = self.unseen = False
         self.identity = await process_identities(self._env, [self.pid])
         if self.track_operations and self.identity:
