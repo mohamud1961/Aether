@@ -14,7 +14,7 @@ def test_optional_index_does_not_duplicate_all_historical_payloads():
         projected,meta=select_context(ctx,[],[{'function':{'name':'read_history'}}],policy='history_index')
         _,peak=tracemalloc.get_traced_memory()
     finally:tracemalloc.stop()
-    assert meta['changed'] and meta['listed']==3 and meta['eligible']==1000
+    assert meta['changed'] and meta['listed']==12 and meta['eligible']==1000
     assert len(projected)==1
     # 30M raw characters already exist. Index construction must allocate a
     # bounded card/page working set, not another encoded copy of every source.

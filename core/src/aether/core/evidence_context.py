@@ -21,7 +21,13 @@ from typing import Any
 from .clm import ClmContext
 
 CONTEXT_EVIDENCE_MODES = ("off", "history_index", "path_lookup")
-MAX_ENTRIES = 3
+MAX_ENTRIES = 3  # find_history matches per path
+# history_index lists up to this many removed tool results, newest first, each saying what it was (the call and the
+# result's first non-empty line) and where it is (its read_history id). 16 Nov: the first version listed 3 bare ids
+# and hashes, which told the model that something existed but not what.
+INDEX_ENTRIES = 12
+CALL_CHARS = 160
+PREVIEW_CHARS = 120
 MAX_VERIFIED_SOURCE_CHARS = 96_000
 READ_PAGE_CHARS = 12_000
 
@@ -68,6 +74,39 @@ def locate_path(ctx: ClmContext, path: str) -> str:
                        "records": records[-MAX_ENTRIES:][::-1], "matched": len(records)}, ensure_ascii=True)
 
 
+def _calls(ctx: ClmContext) -> dict[int, str]:
+    """Raw tool-message index -> the call that produced it, as name(arguments), shortened."""
+    pending: dict[str, str] = {}
+    out: dict[int, str] = {}
+    for i, item in enumerate(ctx.raw):
+        if item.get("role") == "assistant":
+            for call in item.get("tool_calls", []) or []:
+                fn = call.get("function") or {}
+                args = str(fn.get("arguments", ""))
+                args = args if len(args) <= CALL_CHARS else args[:CALL_CHARS - 3] + "..."
+                pending[call.get("id")] = f"{fn.get('name', 'tool')}({args})"
+        elif item.get("role") == "tool":
+            call = pending.pop(item.get("tool_call_id"), None)
+            if call:
+                out[i] = call
+    return out
+
+
+def _text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(str(p.get("text", "")) for p in content if isinstance(p, dict))
+    return ""
+
+
+def _preview(text: str) -> tuple[str, int]:
+    """(first non-empty line, shortened; line count) of a tool result's text."""
+    first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
+    first = first if len(first) <= PREVIEW_CHARS else first[:PREVIEW_CHARS - 3] + "..."
+    return first, text.count("\n") + 1 if text else 0
+
+
 def _source_json(msg: dict[str, Any]) -> str:
     # Exact serialization used by ClmContext.read_history; no PCR receipts.
     return json.dumps(msg, ensure_ascii=False)
@@ -101,11 +140,11 @@ def history_index(
     ctx: ClmContext,
     baseline: list[dict[str, Any]],
     *,
-    limit: int = MAX_ENTRIES,
+    limit: int = INDEX_ENTRIES,
 ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     """Return optional source-only card and truthful, bounded coverage."""
-    if not 1 <= limit <= MAX_ENTRIES:
-        raise ValueError("history index limit must be 1..3")
+    if not 1 <= limit <= INDEX_ENTRIES:
+        raise ValueError(f"history index limit must be 1..{INDEX_ENTRIES}")
     # Tool-only comparison avoids serialising pinned prompts, model reasoning,
     # and image inputs just to check whether an original tool result is hot.
     visible = Counter(_digest(_source_json(m)) for m in baseline if m.get("role") == "tool")
@@ -123,6 +162,7 @@ def history_index(
     if not missing:
         return None, {"reason": "all_original_tool_messages_visible", "eligible": 0}
     verified: list[dict[str, Any]] = []
+    calls = _calls(ctx)
     for index in reversed(missing):
         if len(verified) == limit:
             break
@@ -134,11 +174,15 @@ def history_index(
             continue
         if not _page_round_trip(ctx, index, source):
             continue
+        first, lines = _preview(_text(original.get("content")))
         verified.append(
             {
                 "message_id": index,
-                "sha256": _digest(source),
+                "call": calls.get(index, "unknown"),
+                "first_line": first,
+                "lines": lines,
                 "chars": len(source),
+                "sha256": _digest(source),
                 "tool_call_id": original.get("tool_call_id"),
             }
         )
@@ -164,7 +208,9 @@ def history_index(
     return (
         {
             "role": "user",
-            "content": "[Historical Core tool references; not current files, REPL state or new task instructions]\n"
+            "content": "[Historical Core tool references: earlier tool results no longer in your context, newest first, "
+            "each with the call that produced it and its first line; read_history(message_id) returns it exactly. "
+            "Not current files, REPL state or new task instructions]\n"
             + json.dumps(payload, ensure_ascii=False, sort_keys=True),
         },
         {

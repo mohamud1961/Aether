@@ -78,7 +78,7 @@ def test_combined_clm_recovery_and_default_off_preservation(tmp_path,notes):
     assert normalized(off[:2])==normalized(on[:2])
     assert normalized(off[2]['messages'])==normalized(on[2]['messages'][:-1])
     assert off[2]['tools']==on[2]['tools'] and off[2]['model']==on[2]['model']
-    assert all(not any('Historical Core tool references;' in str(m.get('content')) for m in r['messages']) for r in on[3:])
+    assert all(not any('Historical Core tool references' in str(m.get('content')) for m in r['messages']) for r in on[3:])
 
 
 def test_exact_path_finds_historical_result_after_overwrite_and_context_edit(tmp_path):

@@ -94,19 +94,34 @@ class HistoryEvidenceTest(unittest.TestCase):
         self.assertEqual(card_json(shown)["source"], "Core original tool history (append-time SHA256, page-verified)")
 
     def test_oldest_source_not_misclassified_while_bounded(self):
-        ctx = edited(*(item for n in range(8) for item in (
+        ctx = edited(*(item for n in range(14) for item in (
             action(n), result(n, "original essential source" if n == 0 else f"less relevant {n}")
         )))
         shown, report = select_context(ctx, ctx.request(), HISTORY_TOOL, policy="history_index")
         self.assertTrue(report["changed"])
         card = card_json(shown)
-        self.assertEqual([x["message_id"] for x in card["records"]], [15, 13, 11])
-        self.assertEqual(card["coverage"]["eligible"], 8)
-        self.assertEqual(card["coverage"]["unlisted"], 5)
+        self.assertEqual([x["message_id"] for x in card["records"]], list(range(27, 3, -2)))
+        self.assertEqual(card["coverage"]["eligible"], 14)
+        self.assertEqual(card["coverage"]["unlisted"], 2)
         self.assertFalse(card["coverage"]["unlisted"] == 0)
         self.assertEqual(card["coverage"]["oldest_unlisted_id"], 1)
         self.assertIn("original essential", ctx.read_history(1))
         self.assertTrue(card["unlisted_may_matter"])
+
+    def test_each_entry_says_what_it_was(self):
+        """Known-bad: the 3-id version (no call, no first line) fails this."""
+        ctx = edited(action(1), result(1, "\n\n  Traceback (most recent call last):\n  File x\nValueError: bad"),
+                     action(2), result(2, "x" * 500))
+        shown = select_context(ctx, ctx.request(), HISTORY_TOOL, policy="history_index")[0]
+        card = card_json(shown)
+        by_id = {r["message_id"]: r for r in card["records"]}
+        self.assertEqual(by_id[1]["call"], 'terminal({"input":"cat proto"})')
+        self.assertEqual(by_id[1]["first_line"], "Traceback (most recent call last):")
+        self.assertEqual(by_id[1]["lines"], 5)
+        self.assertEqual(len(by_id[3]["first_line"]), 120)
+        self.assertTrue(by_id[3]["first_line"].endswith("..."))
+        heading = shown[-1]["content"].split("\n", 1)[0]
+        self.assertIn("the call that produced it and its first line", heading)
 
     def test_duplicate_outputs_maintain_distinct_occurrences(self):
         ctx = ClmContext(pinned=PINNED, settings=ClmSettings(attest_original_history=True))
