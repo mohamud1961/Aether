@@ -188,9 +188,18 @@ def text_of(content: Any) -> str:
 
 
 def limit(
-    messages: list[dict[str, Any]], keep: int = KEEP_IMAGES
+    messages: list[dict[str, Any]], keep: int = KEEP_IMAGES, batch: int = 1
 ) -> list[dict[str, Any]]:
-    """Retain a recent suffix of image observations within the image budget."""
+    """Retain a recent suffix of image observations within the image budget.
+
+    ``batch`` > 1 (AETHER_CORE_IMAGE_BATCH, default 1): the oldest images leave in groups of ``batch``, so the shown
+    set changes once per ``batch`` new images instead of on every new one; between drops up to keep + batch - 1
+    images are shown. Cost scan 16 Nov: replacing one older image with a placeholder mid-history re-billed the whole
+    request after it uncached (93% of cache-miss tokens on the current boards, up to 28K tokens per drop).
+    """
+    if batch > 1:
+        total = sum(sum(_is_image_part(p) for p in m["content"]) for m in messages if isinstance(m.get("content"), list))
+        keep = total - (max(0, total - keep) // batch) * batch
     seen, out = 0, []
     for msg in reversed(messages):
         content = msg.get("content")

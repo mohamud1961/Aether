@@ -24,7 +24,7 @@ from .loop_records import RunResult, Trace  # re-exported for existing callers
 from .oversight import ReviewPlan
 from .provider import ChatProvider, ProviderError
 from .review import Transport
-from . import agenda, operations, session_log, step0, workspace_brief
+from . import agenda, loop_mirror, operations, session_log, step0, workspace_brief
 from .tools import system_prompt
 from .loop_config import AFTER_CUT, AFTER_CUT_MAX_TOKENS, CONTEXT_MODES, MAX_OUTPUT_TOKENS, VERIFIER_ROLE, CoreConfig  # noqa: F401
 from .loop_session import _Session, _append, _publish_facts
@@ -234,6 +234,7 @@ async def run_agent(
             f"{type(exc).__name__}: {exc}",
         )
     finally:
+        loop_mirror.abandon(s)
         cleanup_errors = []
         if s.facts:
             s.result.extras["core_facts"] = s.facts.safe_record()
@@ -339,6 +340,9 @@ async def _loop(s: _Session) -> None:
         look = s.new_image and bool(s.config.image_effort) and s.provider.takes_effort and not cut
         s.new_image = False
         prep_s = _since_last_event(s)  # H11: loop work since the previous event (context assembly, checks)
+        if s.clm:  # the mirror of this request's history is written while the model works (loop_mirror)
+            await loop_mirror.settle(s)
+            loop_mirror.start(s)
         try:
             turn = await s.provider.complete(
                 request,

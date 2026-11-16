@@ -12,7 +12,7 @@ from . import facts, finish_report, images
 from .context import SAVE_OVER, SAVED_NOTE, saved_path
 from .env import get_bytes, put_bytes, run
 from .provider import parse_arguments
-from . import completion_notice, operations, stated_use
+from . import completion_notice, loop_mirror, operations, stated_use
 from .tools import validate_call
 from .loop_context import _keep_history
 from .loop_finish import _finish, _with_state
@@ -32,7 +32,7 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
         upto = len(s.clm.editable) - 1  # the mirror holds history before this turn's assistant message
         text = s.clm.render(upto)
         try:
-            await put_bytes(s.env, text.encode(), s.clm.settings.mirror_path)
+            await loop_mirror.write(s, upto, text)
             mirror = (upto, hashlib.sha256(text.encode()).hexdigest())
         except Exception as exc:
             mirror_error = f"[context mirror unavailable: {type(exc).__name__}: {exc}; context unchanged]"

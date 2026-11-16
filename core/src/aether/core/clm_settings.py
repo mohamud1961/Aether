@@ -49,6 +49,8 @@ class ClmSettings:
     # This identifies later in-process mutation, not malicious edits to both
     # source and digest, and does not reconstruct an original task VM.
     attest_original_history: bool = False
+    # Images leave the request in groups of this many (images.limit); 1 = one at a time, the original behaviour.
+    image_batch: int = 1
 
     @property
     def limit(self) -> int:

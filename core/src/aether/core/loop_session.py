@@ -106,6 +106,7 @@ class _Session:
             dict[str, Any]
         ] = []  # shown after the current turn's tool results
         self.images_viewed = 0
+        self.mirror_prewrite = None  # (upto, text, task): the context mirror write started with the request (loop_mirror)
         self.new_image = False  # the next request is the first to carry a newly attached image (image_effort)
         self.call_id = ""  # the call being dispatched (the fork answers the finish call by its id)
         self.operation_delivery = ""

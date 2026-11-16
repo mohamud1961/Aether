@@ -3,7 +3,6 @@ SF (strict=false on Responses tools) and R2 (the first task message repeated). A
 
 import asyncio
 import json
-from types import SimpleNamespace
 
 import pytest
 
