@@ -97,6 +97,28 @@ summarised or searched without putting it into your own context. The value of a 
 printed. Long cells keep running: use wait_s and call again with empty code to keep waiting.
 """
 
+# B18 (toolset "python"): the REPL is the only tool; the library is described, no working rules are added.
+PYTHON_ONLY_TOOLS_DOC = """
+Your tools:
+- python: a persistent Python {version} REPL inside the container, and your only way to act on it. Variables, \
+imports, functions, os.chdir and os.environ persist between calls. Built in:
+  bash(cmd, timeout=600, cwd=None) -> handle: starts a shell command in the background and returns at once. \
+h.wait(timeout=None) or `await h` waits for it to end; h.code is None while it runs, else the exit code; h.output() \
+is everything it printed, h.tail(n) the last n characters; h.kill() stops it and what it started. A command that \
+ends before you looked at it is reported once at the start or end of your next python result.
+  sh(cmd) -> result with .code and .output, run to completion; read(path); read_bytes(path); \
+write(path, text_or_bytes); edit(path, old, new); llm(prompt) -> str, a sub-model with no tools.{mcp}
+  The value of a final expression is printed. A long cell keeps running: use wait_s and call again with empty \
+code to keep waiting, or interrupt=true to stop it.
+{{images}}- finish: end the task.
+{{context}}
+"""
+PYTHON_ONLY_MCP_DOC = """
+  mcp(server, tool, arguments=None, **keywords) calls a tool of an MCP server this task declares ({servers}) and \
+returns its result (its structured content when given, else its text); mcp(server) lists the server's tools and \
+input schemas. mcp_many(server, [(tool, arguments), ...]) sends several calls at once and returns their results in \
+order, with an McpError in place of any that failed. The server session persists for the whole run."""
+
 IMAGES_DOC = """- view_image: look at an image file (PNG, JPEG, BMP, PPM, GIF, ...). Use it to check visual output \
 you produce, such as a rendered frame, plot or screenshot, against what the task describes.
 """
@@ -384,6 +406,8 @@ def system_prompt(
     notes: str = "legacy",
     working: str = "on",
     file_tools: bool = True,
+    python_only: bool = False,
+    mcp_servers: tuple[str, ...] = (),
 ) -> str:
     context = CLM_DOC.replace(MIRROR_PATH, mirror_path).replace(
         HISTORY_PATH, history_path
@@ -391,6 +415,11 @@ def system_prompt(
     if hygiene not in HYGIENE_MODES:
         raise ValueError(f"hygiene must be one of {HYGIENE_MODES}")
     base = BASE_PROMPT if working != "lean" else SOLVER_INTRO + TOOLS_DOC + SOLVER_WORKING_LEAN
+    if python_only and not verifier:  # B18: the REPL library replaces the terminal and file tool descriptions
+        mcp = PYTHON_ONLY_MCP_DOC.format(servers=", ".join(mcp_servers)) if mcp_servers else ""
+        tools_doc = PYTHON_ONLY_TOOLS_DOC.format(version=python_version, mcp=mcp).replace("{python}", "")
+        base = base.replace(TOOLS_DOC, "{python}" + tools_doc, 1)
+        python_version = ""
     if working == "conv":  # study arm: conventions appended (see conventions.py)
         base += CONVENTIONS
     if hygiene != "off" and not verifier:  # inserted before the closing "Call finish only when..." line
@@ -438,7 +467,11 @@ def tools(
     verdict: bool = False,
     terminal_events: bool = False,
     file_tools: bool = True,
+    python_only: bool = False,
 ) -> list[dict[str, Any]]:
+    if python_only:  # B18: the REPL is the only action tool
+        return [PYTHON, *([VIEW_IMAGE] if images else []), *([READ_HISTORY] if history else []),
+                VERDICT_FINISH if verdict else FINISH]
     return [
         TERMINAL,
         *([TERMINAL_WAIT] if terminal_events else []),

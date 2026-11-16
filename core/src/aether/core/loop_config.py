@@ -18,7 +18,7 @@ AFTER_CUT = {"reasoning_effort": "low"}
 # V3: 3 of 4 low-effort turns acted within 25 s (under 2k output tokens); one still reasoned to 32k (265 s).
 # Its output cap bounds that case to a quarter of the time.
 AFTER_CUT_MAX_TOKENS = 8_192
-CONTEXT_MODES = ("project", "clm")
+CONTEXT_MODES = ("project", "clm", "append")
 VERIFIER_ROLE = "verifier"  # the call-log role of the one independent finish check (see verify)
 
 
@@ -32,7 +32,8 @@ class CoreConfig:
     control_dir: str = CONTROL_DIR  # where terminals and the REPL keep their files in the sandbox
     make_clone: Callable[[Environment], Awaitable[Any]] | None = None  # tests inject a clone; default docker
     parallel_reads: bool = False  # opt-in: bounded contiguous read_file batches only
-    toolset: str = "full"  # minimal: terminal, CLM history recall, finish, and optional terminal_wait
+    toolset: str = "full"  # minimal: terminal, CLM history recall, finish, and optional terminal_wait; python (B18):
+    # the REPL and finish only, with bash()/mcp() as library functions (repl_lib_src)
     verify: bool = False  # one independent check of the first finish, in a fresh context on a clone (see verify)
     self_check: bool = (
         False  # the self-check paragraph in the system prompt (tools.SELF_CHECK_DOC)
@@ -59,6 +60,7 @@ class CoreConfig:
     finish_hold: str = "off"  # "neutral": the first finish is held once with time left and no facts (control arm)
     browser: Any = None  # browser.Factory: a real browser in a sidecar on the task's network (browser); None = off
     browser_page_facts: bool = False  # C3: failed requests, dialogs, downloads in the browser state line (AETHER_CORE_BROWSER_PAGE_FACTS)
+    browser_effects: bool = False  # C16: one line of fact after each browser action (AETHER_CORE_BROWSER_EFFECTS)
     browser_session: bool = False  # one browser kept open across browser calls (browser_session_src; AETHER_CORE_BROWSER=session)
     image_region: bool = False  # view_image may show part of an image at full resolution (image_region)
     image_compare: bool = False  # view two independently selected images in the same observation
@@ -105,10 +107,21 @@ class CoreConfig:
     workspace_search: bool = False
     fast_process_scan: bool = False  # opt-in: single-process pending-terminal observer with shell fallback
     fast_mcp_wait: bool = False  # opt-in: bounded sandbox-side response observation
+    append_policy: str = "core64"  # context "append": a name in context_append_policies.POLICIES
+    context_window: int | None = None  # context "append": the provider's window in tokens (required; no default)
+    keep_cut_outputs: bool = False  # opt-in evidence (D18): copy each cut terminal span next to the trace at run end
 
     def __post_init__(self) -> None:
-        if self.toolset not in ("full", "minimal"):
-            raise ValueError("toolset must be full or minimal")
+        if self.toolset not in ("full", "minimal", "python"):
+            raise ValueError("toolset must be full, minimal or python")
+        if self.toolset == "python":
+            conflicts = [name for name, enabled in (
+                ("repl off", not self.repl), ("browser", self.browser is not None), ("terminal_events", self.terminal_events),
+                ("workspace_search", self.workspace_search), ("verify", self.verify),
+                ("path_lookup", self.evidence_presentation == "path_lookup"),
+            ) if enabled]
+            if conflicts:
+                raise ValueError(f"python toolset cannot combine with: {', '.join(conflicts)}")
         if self.toolset == "minimal":
             conflicts = [
                 name for name, enabled in (
@@ -126,6 +139,16 @@ class CoreConfig:
             raise ValueError("managed_facts and env_brief are alternative information channels")
         if self.context not in CONTEXT_MODES:
             raise ValueError(f"context must be one of {CONTEXT_MODES}")
+        if self.context == "append":
+            from .context_append_policies import POLICIES
+
+            if self.clm.replay_reasoning not in ("all", "none"):
+                raise ValueError("context 'append' replays reasoning 'all' or 'none' (it never edits its history)")
+
+            if self.append_policy not in POLICIES:
+                raise ValueError(f"append_policy must be one of {tuple(POLICIES)}")
+            if not isinstance(self.context_window, int) or self.context_window < 16_000:
+                raise ValueError("context 'append' needs the provider's context_window in tokens (>= 16000)")
         from .clm_settings import CHECKPOINT_POLICIES
 
         if self.clm.checkpoint_policy not in CHECKPOINT_POLICIES:

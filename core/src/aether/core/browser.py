@@ -33,7 +33,7 @@ from .clone import HostRun, compose_container, host_run, identify
 from .env import Environment
 
 BROWSER_ENV = "AETHER_CORE_BROWSER"
-BROWSER_IMAGE = "aether-browser:1"
+BROWSER_IMAGE = "aether-browser:2"  # built from aether-core/images/browser (Playwright 1.64.1); :1 had 1.49.1
 GRACE_S = 120
 SCREENSHOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}\.png")
 
@@ -248,9 +248,10 @@ def compose_factory(project: str) -> Factory:
 
 class BrowserSession:
     def __init__(self, factory: Factory, env: Environment, host: HostRun = host_run, persistent: bool = False,
-                 page_facts: bool = False) -> None:
+                 page_facts: bool = False, effects: bool = False) -> None:
         self.factory, self.env, self.host, self.persistent = factory, env, host, persistent
         self.page_facts = page_facts  # C3: failed requests, dialogs, downloads in the state line (session mode)
+        self.effects = effects  # C16: one line of fact after each browser action (session mode)
         self.installed = False
         self.sidecar: Sidecar | None = None
         self.image: tuple[str, str] | None = None
@@ -284,7 +285,7 @@ class BrowserSession:
             if not car.started:
                 raise RuntimeError("sidecar startup was unconfirmed")
             if self.persistent and not self.installed:
-                await car.runs.install("aether_browser", browser_session_src.source(self.page_facts))
+                await car.runs.install("aether_browser", browser_session_src.source(self.page_facts, self.effects))
                 self.installed = True
             wait = max(1.0, min(float(args.get("wait_s") or 120), 600.0, max(1.0, remaining_s - 10)))
             call_key = browser_ops.key(args)

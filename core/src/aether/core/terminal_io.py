@@ -194,6 +194,7 @@ class TerminalIO:
         if res.code != 0 or not separator:
             raise RuntimeError(f"terminal {session.name} output or delivery record could not be read")
         head, tail = decode(head, VIEW_HEAD), decode(tail, VIEW_TAIL)
+        vars(self).setdefault("cut_spans", []).append((session.log, start, end))  # D18: kept at run end if asked
         return (
             f"{head}\n…[{n - VIEW_HEAD - VIEW_TAIL} bytes omitted; full output is in {session.log} "
             f"at byte offsets {start}-{end}; use grep/sed/tail on it]…\n{tail}"

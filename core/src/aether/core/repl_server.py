@@ -171,6 +171,19 @@ NS = {
     "json": json,
 }
 TOP_AWAIT = getattr(ast, "PyCF_ALLOW_TOP_LEVEL_AWAIT", 0)
+LIB = os.path.join(BASE, "lib.py")
+if os.path.exists(LIB):  # the Python-only interface's library (repl_lib_src): bash(), mcp() and their notices
+    NS["_AETHER_BASE"] = BASE
+    exec(compile(read(LIB), LIB, "exec"), NS)
+
+
+def notices():
+    hook = NS.get("_aether_notices")
+    if hook is not None:
+        try:
+            hook()
+        except Exception:
+            traceback.print_exc()
 
 
 def run_cell(source):
@@ -231,7 +244,9 @@ def main():
         )
         sys.stderr = sys.stdout
         try:
+            notices()
             run_cell(read(cell))
+            notices()
         except KeyboardInterrupt:
             status = "interrupted"
             print("KeyboardInterrupt")

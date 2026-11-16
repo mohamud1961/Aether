@@ -20,12 +20,15 @@ state is printed: open tabs and the current page's title and URL, and any consol
 facts (C3, AETHER_CORE_BROWSER_PAGE_FACTS=on, ``source(page_facts=True)``) it also lists the call's failed requests
 (network failures and HTTP status >= 400), dialogs and downloads. All are recorded passively: dialogs through a
 separate DevTools session, because a Playwright ``dialog`` listener would stop Playwright dismissing them itself.
+With effect lines (C16, AETHER_CORE_BROWSER_EFFECTS=on) each action also prints what it changed (browser_effects_src).
 """
 
 
-def source(page_facts: bool = False) -> str:
-    """The module text, with page facts (C3) switched on or off."""
-    return SOURCE.replace("_PAGE_FACTS = False", f"_PAGE_FACTS = {bool(page_facts)}", 1)
+def source(page_facts: bool = False, effects: bool = False) -> str:
+    """The module text, with page facts (C3) switched on or off, and per-action effect lines (C16) appended when on."""
+    from aether.core import browser_effects_src
+    text = SOURCE.replace("_PAGE_FACTS = False", f"_PAGE_FACTS = {bool(page_facts)}", 1)
+    return text + browser_effects_src.SOURCE if effects else text
 
 
 SOURCE = r'''
@@ -212,6 +215,11 @@ def snapshot(target=None, depth=None):
     returned. Act on an element with ref("e5")."""
     pg = target if target is not None and hasattr(target, "goto") else page()
     root = target if target is not None and not hasattr(target, "goto") else pg
+    if not hasattr(pg, "aria_snapshot"):
+        from importlib.metadata import version
+        raise RuntimeError(f"this browser image has Playwright {version('playwright')}, which has no AI snapshot "
+                           "(Page.aria_snapshot, Playwright 1.6x): snapshot() and ref() are unavailable here; "
+                           "Playwright's own locators (get_by_role, locator) still work")
     document = _document(pg)
     target_id, loader, frames = document
     text = root.aria_snapshot(mode="ai", depth=depth)

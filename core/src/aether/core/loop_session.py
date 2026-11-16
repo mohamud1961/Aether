@@ -60,7 +60,8 @@ class _Session:
         self.result = RunResult("timeout")
         self.env = DeadlineEnvironment(env, self.remaining)
         self.browser = browser.BrowserSession(config.browser, self.env, persistent=config.browser_session,
-                                              page_facts=config.browser_page_facts) if config.browser else None
+                                              page_facts=config.browser_page_facts,
+                                              effects=config.browser_effects) if config.browser else None
         self.terminals = Terminals(
             self.env, workdir, self.remaining, control_dir=config.control_dir,
             command_names=facts_probe.COMMANDS if config.managed_facts and config.role == "worker" else (),
@@ -83,6 +84,7 @@ class _Session:
             sub_llm(provider, self.remaining, self.result.sub_usage),
             base=f"{config.control_dir}/repl",
             track_operations=config.terminal_events,
+            library=config.toolset == "python",
         )
         self.oversight = Oversight(
             config.reviews, transport, call, timeout_s, control_dir=config.control_dir
@@ -92,6 +94,7 @@ class _Session:
         self.finish_wait_returned = False
         self.task_reshown = False  # task_at_first_observation fires once
         self.clm: ClmContext | None = None
+        self.append_ctx = None  # context "append" (context_append.AppendContext)
         # Optional and ephemeral: index the first decision after a new CLM
         # edit/checkpoint/rollback, not every later turn (prompt-cost guard).
         self.evidence_index_last_generation: tuple[int, int, int] | None = None

@@ -50,7 +50,12 @@ SCOPE={
     "_action_view":lambda name,args,out:(name,args,out),
     "finish_report":NS(record=lambda step,name,args,out,wd:(step,name,args,out)),
 }
-exec(compile(ast.fix_missing_locations(ast.Module(body=[FUNCTION],type_ignores=[])),str(SOURCE),"exec"),SCOPE)
+HELPERS = [x for x in TREE.body if isinstance(x, ast.FunctionDef) and x.name == "_since_last_event"]  # H11 timer, real
+for helper in HELPERS:
+    helper.returns = None
+    for arg in helper.args.args:
+        arg.annotation = None
+exec(compile(ast.fix_missing_locations(ast.Module(body=[*HELPERS, FUNCTION],type_ignores=[])),str(SOURCE),"exec"),SCOPE)
 run_calls=SCOPE["_run_calls"]
 
 def fake_session(*,parallel=False):

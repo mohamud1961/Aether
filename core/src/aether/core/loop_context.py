@@ -175,3 +175,22 @@ async def _fit_context(s: _Session) -> bool:
         _attach(clm.editable, note)
         s.trace("context_nudge", tokens=clm.tokens(), note=note)
     return True
+
+
+async def _fit_append(s: _Session) -> bool:
+    """Append-only context: summarise the older part once if the next request is over the policy's threshold.
+    A failed summary ends the run as a context error with its reason (no silent unsummarised drop)."""
+    try:
+        usage = await s.append_ctx.fit(
+            s.provider, s.task, s.messages, remaining_s=s.remaining, trace=s.trace,
+            save=lambda path, data: put_bytes(s.env, data, path), save_dir=f"{s.config.control_dir}/evidence")
+    except Exception as exc:
+        s.trace("context_append_cut", ok=False, error=f"{type(exc).__name__}: {exc}")
+        if isinstance(exc, ProviderError) and exc.deadline:
+            s.result.status = "timeout"
+        else:
+            s.result.status, s.result.error = "context_error", f"append summary failed: {type(exc).__name__}: {exc}"
+        return False
+    for key, value in usage.items():
+        s.result.sub_usage[key] = s.result.sub_usage.get(key, 0) + value
+    return True

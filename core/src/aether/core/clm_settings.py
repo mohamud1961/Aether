@@ -36,6 +36,8 @@ class ClmSettings:
     # Replayed reasoning is outside ``budget_tokens`` in "newest" and "all". "segment" replays like "all" but the
     # budget counts every replayed reasoning except the newest turn's, so a checkpoint bounds the whole request and
     # drops older reasoning with the turns it summarises (between checkpoints the request only grows at its end).
+    # "none" (any context mode): no turn's reasoning is ever sent back, the newest included; the model reasons
+    # afresh each turn from the visible history. The trace still records every turn's reasoning.
     replay_reasoning: str = "newest"
     # How the model's edited context is framed when it comes back. Both modes send it in role=user messages (the
     # role is not changed). "own" prefixes each such block with a "[your notes]" label, the first with a header
@@ -70,4 +72,4 @@ class ClmSettings:
             )
 
 
-REPLAY_MODES = ("newest", "all", "segment")
+REPLAY_MODES = ("newest", "all", "segment", "none")

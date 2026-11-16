@@ -15,7 +15,7 @@ nudge=ns["nudge"]
 class Stub:
     def __init__(self,used,budget,threshold=0.5):
         self.usage=used
-        self.settings=types.SimpleNamespace(budget_tokens=budget,limit=budget-2048,mirror_path="/tmp/ctx")
+        self.settings=types.SimpleNamespace(budget_tokens=budget,limit=budget-2048,mirror_path="/tmp/ctx",checkpoint_policy="summary")
         self.stats=types.SimpleNamespace(max_tokens_seen=0,nudges=0,urgent_nudges=0)
         self._recent_outputs=[]
         self.chars_per_token=3.0

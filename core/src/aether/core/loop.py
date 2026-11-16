@@ -14,7 +14,7 @@ import shlex
 import time
 from typing import Any, Awaitable, Callable
 
-from . import diffcheck, facts, facts_projection, facts_pull, finish_report, image_region, images, intent, runstate
+from . import cut_outputs, diffcheck, facts, facts_projection, facts_pull, finish_report, loop_tools, runstate
 from . import receipt as finish_receipt
 from .clm import ClmContext
 from .context import project, size_chars
@@ -24,12 +24,14 @@ from .loop_records import RunResult, Trace  # re-exported for existing callers
 from .oversight import ReviewPlan
 from .provider import ChatProvider, ProviderError
 from .review import Transport
-from . import agenda, browser, open_issues, operations, session_log, step0, workspace_brief
-from .tools import system_prompt, tools
+from . import agenda, operations, session_log, step0, workspace_brief
+from .tools import system_prompt
 from .loop_config import AFTER_CUT, AFTER_CUT_MAX_TOKENS, CONTEXT_MODES, MAX_OUTPUT_TOKENS, VERIFIER_ROLE, CoreConfig  # noqa: F401
 from .loop_session import _Session, _append, _publish_facts
-from .loop_calls import _run_calls
-from .loop_context import _fit_context
+from .loop_calls import _run_calls, _since_last_event
+from .loop_context import _fit_append, _fit_context
+from .context_append import AppendContext
+from .context_append_policies import POLICIES
 from .loop_finish import _appendix, _scheduled_review
 
 STOP_MARGIN_S = 15.0
@@ -145,44 +147,7 @@ async def run_agent(
                 if s.browser:  # A11/A13: adopt the task's sidecar and track browser result delivery
                     s.browser.adopt, s.browser.conversation, s.browser.delivery_tag = True, deliveries, s.delivery_tag
             python = await s.repl.start() if config.repl else ""
-            see = config.images and images.available()
-            s.tools = tools(
-                python=bool(python),
-                images=see,
-                history=config.context == "clm",
-                verdict=config.role == VERIFIER_ROLE,
-                terminal_events=config.terminal_events and config.role == "worker",
-                file_tools=config.toolset != "minimal",
-            )
-            if getattr(config, "mcp_servers", ()) and config.role == "worker":
-                from . import mcp
-
-                s.mcp = mcp.Mcp(s.env, config.control_dir, list(config.mcp_servers), adopt=config.terminal_events,
-                                idempotency=config.mcp_idempotency, fast_wait=config.fast_mcp_wait)
-                if config.terminal_events:
-                    s.mcp.conversation, s.mcp.delivery_tag = s.terminals.conversation, s.delivery_tag
-                s.tools = [*s.tools, mcp.tool(list(config.mcp_servers))]
-            if config.workspace_search and config.role == "worker":
-                from . import workspace_search
-
-                s.tools.append(workspace_search.TOOL)
-            if config.evidence_presentation == "path_lookup" and config.role == "worker":
-                from .evidence_context import LOCATE_TOOL
-
-                s.tools.append(LOCATE_TOOL)
-            if see and config.context == "clm" and config.clm.attest_original_history:
-                s.tools = images.with_history_recall(s.tools)
-            if config.image_region and see:
-                s.tools = image_region.with_region(s.tools)
-            if config.image_compare and see:
-                s.tools = image_region.with_compare(s.tools)
-            if config.intent:
-                s.tools = intent.with_intent(s.tools)
-            if config.open_issues:
-                s.tools = open_issues.with_field(s.tools)
-            s.tools = browser.with_tool(s.tools, config.browser_session) if config.browser else s.tools
-            if s.state:
-                s.tools = runstate.with_state(s.tools)
+            see = loop_tools.assemble(s, config, python)
             if s.facts and config.facts_pull:
                 start_note = "\n".join(filter(None, (start_note, await s.facts.start())))
             agenda_text = ""
@@ -202,7 +167,9 @@ async def run_agent(
                         hygiene=config.hygiene,
                         working=getattr(config, "working", "on"),
                         notes=config.clm.notes_voice,
-                        file_tools=config.toolset != "minimal",
+                        file_tools=config.toolset == "full",
+                        python_only=config.toolset == "python",
+                        mcp_servers=tuple(x["name"] for x in getattr(config, "mcp_servers", ())),
                     )
                     + (runstate.STATE_DOC if s.state else "")
                     + (facts_projection.POLICY if s.facts_timeline else ""),
@@ -219,6 +186,8 @@ async def run_agent(
                 s.clm = resume or ClmContext(pinned=pinned, settings=config.clm)
             else:
                 s.messages = list(resume) if resume is not None else list(pinned)
+                if config.context == "append":
+                    s.append_ctx = AppendContext(POLICIES[config.append_policy], config.context_window, len(pinned))
             if config.workspace_brief and config.role == "worker" and resume is None:
                 brief = await workspace_brief.observe(s.env, workdir, trace)
                 if brief:
@@ -279,6 +248,13 @@ async def run_agent(
                     )
             except TimeoutError:
                 cleanup_errors.append(f"{name}: still running when the run ended")
+        if s.config.keep_cut_outputs and getattr(s.terminals, "cut_spans", None) and getattr(s.trace, "path", None):
+            try:  # D18 evidence, before the terminals close; never model-visible
+                async with asyncio.timeout(60):
+                    s.result.extras["cut_outputs"] = await cut_outputs.keep(
+                        s.env, s.trace.path.parent / "cut_outputs", s.terminals.cut_spans)
+            except Exception as exc:
+                cleanup_errors.append(f"cut outputs: {type(exc).__name__}: {exc}")
         keep = s.config.end_processes == "keep"
         closers = [("terminals", lambda: s.terminals.close(keep=keep)), ("repl", lambda: s.repl.close(keep=keep))]
         if s.browser:
@@ -331,9 +307,10 @@ async def _loop(s: _Session) -> None:
         due = s.oversight.due(s.elapsed(), s.remaining())
         if due:
             await _scheduled_review(s, due)
-        if s.clm and not await _fit_context(s):
+        if (s.clm and not await _fit_context(s)) or (s.append_ctx and not await _fit_append(s)):
             return
-        request = s.clm.request() if s.clm else project(s.messages, tight=tight)
+        request = (s.clm.request() if s.clm else s.append_ctx.request(s.messages) if s.append_ctx
+                   else project(s.messages, tight=tight))
         if s.config.evidence_presentation == "history_index":
             from .evidence_context import select_context
 
@@ -359,6 +336,7 @@ async def _loop(s: _Session) -> None:
         sizes = {"held": s.clm.held(), "request": s.clm.tokens()} if s.clm else None
         look = s.new_image and bool(s.config.image_effort) and s.provider.takes_effort and not cut
         s.new_image = False
+        prep_s = _since_last_event(s)  # H11: loop work since the previous event (context assembly, checks)
         try:
             turn = await s.provider.complete(
                 request,
@@ -376,7 +354,7 @@ async def _loop(s: _Session) -> None:
                 deadline=exc.deadline,
                 overflow=exc.context_overflow,
             )
-            if exc.context_overflow and not tight and not s.clm:
+            if exc.context_overflow and not tight and not s.clm and not s.append_ctx:
                 tight = True
                 continue
             if exc.deadline:  # the reason is kept: a retry wait that outran the deadline is not the model's timeout
@@ -387,11 +365,12 @@ async def _loop(s: _Session) -> None:
         result.calls += 1
         for key, value in turn.usage.items():
             result.usage[key] = result.usage.get(key, 0) + value
-        if s.clm:
-            s.clm.calibrate(result.request_chars[-1], turn.usage.get("input", 0))
+        if s.clm or s.append_ctx:
+            (s.clm or s.append_ctx).calibrate(result.request_chars[-1], turn.usage.get("input", 0))
         s.trace(
             "model",
             latency_s=round(turn.latency_s, 3),
+            prep_s=prep_s,
             attempts=turn.attempts,
             failures=turn.failures,
             usage=turn.usage,
@@ -407,6 +386,8 @@ async def _loop(s: _Session) -> None:
         )
         cut = turn.finish_reason == "length" and not turn.tool_calls
         assistant = turn.assistant_message()
+        if s.config.clm.replay_reasoning == "none":  # never sent back; the trace above keeps it
+            assistant.pop("reasoning_content", None)
         _append(s, assistant)
         if assistant.get("compaction"):
             s.trace("native_compaction", items=len(assistant["compaction"]), usage=turn.usage)
@@ -475,6 +456,8 @@ def _close(s: _Session) -> None:
         "llm_calls": s.repl.llm_calls,
         "llm_errors": s.repl.llm_errors,
         "clm": s.clm.stats.__dict__ if s.clm else None,
+        "append_context": s.append_ctx and {"policy": s.append_ctx.policy.name, "limit": s.append_ctx.limit,
+                                            "cuts": s.append_ctx.cuts, "summary_usage": s.append_ctx.summary_usage},
         "model_calls": s.provider.log.totals(),
         "record": s.record.summary() if s.record else None,
         "diffcheck": {**s.diffcheck.summary(), "usage": s.provider.log.usage(
@@ -483,7 +466,7 @@ def _close(s: _Session) -> None:
         "switches": {"finish_settle": s.config.finish_settle, "completion_notices": s.config.completion_notices,
                      "env_map": s.config.env_map, "terminal_result_delivery": s.config.terminal_result_delivery,
                      "finish_facts": s.config.finish_facts, "outside_witness": s.config.outside_witness,
-                     "mcp_idempotency": s.config.mcp_idempotency, "browser_page_facts": s.config.browser_page_facts},
+                     "mcp_idempotency": s.config.mcp_idempotency, "browser_page_facts": s.config.browser_page_facts, "browser_effects": s.config.browser_effects},
     }
     s.trace(
         "end",

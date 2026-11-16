@@ -215,3 +215,34 @@ def test_the_tool_description_names_the_kept_browser_only_in_session_mode():
     assert "aether_browser" not in plain[1]["function"]["description"]
     assert "aether_browser" in kept[1]["function"]["description"]
     assert plain[1]["function"]["parameters"] == kept[1]["function"]["parameters"]
+
+
+def _has_ai_snapshot():
+    try:
+        from playwright.sync_api import Page
+    except ImportError:
+        return True
+    return hasattr(Page, "aria_snapshot")
+
+
+@pytest.mark.skipif(_has_ai_snapshot(), reason="only on an image whose Playwright lacks Page.aria_snapshot")
+def test_an_old_playwright_image_states_the_gap_instead_of_crashing(tmp_path, app):
+    """aether-browser:1 on the GCP host had Playwright 1.49.1: snapshot() raised AttributeError mid-task. The module
+    must state the version and what still works. Known-bad: the unchecked module printed only an AttributeError."""
+    os.environ["AETHER_BROWSER_HOME"] = str(tmp_path / "home")
+    session = browser.BrowserSession(None, None, host=local_host, persistent=True)
+    car = browser.Sidecar("c" * 64, local_host)
+    car.started, car.runs.ops_dir = True, str(tmp_path / "ops")
+    session.sidecar = car
+
+    async def go():
+        try:
+            return await session.use({"code": f"from aether_browser import page, snapshot\npage().goto({app + '/login'!r})"
+                                               "\nsnapshot()", "wait_s": 60}, 600.0)
+        finally:
+            pid = tmp_path / "home" / "chrome.pid"
+            if pid.exists():
+                os.kill(int(pid.read_text()), signal.SIGKILL)
+
+    out = asyncio.run(go())
+    assert "which has no AI snapshot" in out and "AttributeError" not in out, out

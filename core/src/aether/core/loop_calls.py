@@ -19,6 +19,11 @@ from .loop_finish import _finish, _with_state
 from .loop_session import _Session, _action_view, _append, _attach, _publish_facts, _restore_facts
 
 
+def _since_last_event(s: _Session) -> float | None:
+    last = getattr(s.trace, "last", None)
+    return round(time.monotonic() - last, 3) if isinstance(last, float) else None
+
+
 async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
     """Execute one turn's tool calls. Returns True when the run finished."""
     mirror = None
@@ -70,9 +75,11 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
                         duration_s=round(time.monotonic() - started, 3))
             buffered.update(zip(range(index, end), results))
         s.operation_delivery = ""
+        was_buffered, pre_s = index in buffered, _since_last_event(s)  # H11: dispatch time before the call
         args, out, finished, duration, held_finish = (
-            buffered.pop(index) if index in buffered else await _invoke(s, call)
+            buffered.pop(index) if was_buffered else await _invoke(s, call)
         )
+        returned = time.monotonic()
         failed = failed or out.startswith("error:")
         if mirror_error:
             out += "\n" + mirror_error
@@ -98,8 +105,10 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
         )
         # H1: call_id joins this event to the model turn that asked for it; delivery is the tag the owner wrote
         # beside its operation record (delivered_<seq>), so an on-disk effect joins back to this call.
+        # pre_s/post_s (H11): with prep_s on model events they tile the run, so per-call overhead is attributable.
         s.trace("tool", name=name, args=args, result=out, duration_s=duration, call_id=call["id"],
-                delivery=s.operation_delivery or None)
+                delivery=s.operation_delivery or None, pre_s=None if was_buffered else pre_s,
+                post_s=round(time.monotonic() - returned, 3))
         if s.record and name == "terminal":
             fact = await s.record.after_terminal(args, out, s.elapsed())
             if fact:

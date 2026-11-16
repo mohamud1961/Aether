@@ -30,12 +30,13 @@ class Trace:
     def __init__(self, path: Path) -> None:
         self._path = self.path = path
         path.parent.mkdir(parents=True, exist_ok=True)
-        self._t0 = time.monotonic()
+        self._t0 = self.last = time.monotonic()  # last: when the latest event was written (H11 phase timers)
 
     def __call__(self, event: str, **data: Any) -> None:
         row = {"t": round(time.monotonic() - self._t0, 3), "event": event, **data}
         with self._path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+        self.last = time.monotonic()
 
     def durable(self, event: str, **data: Any) -> None:
         row = {"t": round(time.monotonic() - self._t0, 3), "event": event, **data}
@@ -43,3 +44,4 @@ class Trace:
             fh.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
             fh.flush()
             os.fsync(fh.fileno())
+        self.last = time.monotonic()

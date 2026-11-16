@@ -83,11 +83,12 @@ def test_a_whole_core_session_runs_without_harbor(box, tmp_path):
 
 
 class DockerCut(DockerExecEnv):
-    """CutExecs's discovery and misreport modes, with the counter read back through docker exec."""
+    """CutExecs's discovery, misreport and (with ``cut``) kill modes, with the counter read back through docker exec."""
 
-    def __init__(self, box, root, target=None):
+    def __init__(self, box, root, target=None, cut=None):
         super().__init__(box, docker=DOCKER)
         self.root, self.target, self.armed, self.fired, self.index, self.counts = root, target, False, False, 0, []
+        self.cut = cut
 
     async def exec(self, command, **kwargs):
         if not self.armed or self.fired:
@@ -101,6 +102,9 @@ class DockerCut(DockerExecEnv):
         if i != self.target:
             return await super().exec(command, **kwargs)
         self.fired = True
+        if self.cut is not None:
+            await super().exec(_under_trap(command, f"{self.root}/.exec-{i}.n", self.cut), **kwargs)
+            raise ConnectionError(f"the controller lost exec {i}")
         await super().exec(command, **kwargs)
         return SimpleNamespace(return_code=1, stdout="", stderr="")
 

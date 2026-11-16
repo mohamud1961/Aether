@@ -389,6 +389,14 @@ def test_a_clone_cancelled_at_any_point_leaves_no_container_or_image_behind(box)
             ["docker", "ps", "-aq"], capture_output=True, text=True
         ).stdout.split()
     )
+    # On a shared Linux gate VM aether-clone images can predate this test.
+    # Assert no *new* image remains, not that the global image namespace is empty.
+    before_images = set(
+        subprocess.run(
+            ["docker", "image", "ls", "-q", "--filter", "reference=aether-clone"],
+            capture_output=True, text=True,
+        ).stdout.split()
+    )
     cancelled = 0
 
     async def go(delay):
@@ -409,13 +417,14 @@ def test_a_clone_cancelled_at_any_point_leaves_no_container_or_image_behind(box)
             ["docker", "ps", "-aq"], capture_output=True, text=True
         ).stdout.split()
     )
-    images = subprocess.run(
+    images = set(subprocess.run(
         ["docker", "image", "ls", "-q", "--filter", "reference=aether-clone"],
-        capture_output=True,
-        text=True,
-    ).stdout.split()
+        capture_output=True, text=True,
+    ).stdout.split())
     assert cancelled >= 2  # the cancellations really landed mid-creation
-    assert after <= before and not images, (after - before, images)
+    assert after <= before and images <= before_images, (
+        after - before, images - before_images,
+    )
 
 
 def test_zombie_liveness_is_not_reported_as_alive(box):

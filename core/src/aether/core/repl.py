@@ -27,7 +27,7 @@ from .env import (
     run,
     stop_process_tree,
 )
-from . import operations, repl_adopt
+from . import operations, repl_adopt, repl_lib_src
 from .terminal import MAX_WAIT_S
 from .tool_validate import unsendable_text
 
@@ -50,6 +50,7 @@ class Repl:
         llm_answer: LlmAnswer | None,
         base: str = f"{CONTROL_DIR}/repl",
         track_operations: bool = False,
+        library: bool = False,
     ) -> None:
         self._env, self._workdir, self._remaining, self._llm = (
             env,
@@ -61,6 +62,8 @@ class Repl:
         # Operation tracking (operations.py): the server takes a start token per cell, so a submission whose reply
         # was lost is decided (ran, or cancelled for certain) instead of staying "still running" for good.
         self.track_operations = track_operations
+        # B18 Python-only interface: bash()/mcp() in the namespace (repl_lib_src); mcp() starts clients through self.mcp.
+        self.library, self.mcp = library, None
         self.unconfirmed = False  # a cell submission's reply was lost; whether the server took it is unresolved
         self.unseen = False  # the pending cell's state has not been shown to the model
         # Delivery authority (operations.seen), as for terminals; set by the loop.
@@ -100,8 +103,10 @@ class Repl:
                 self.adopted_note = note + "\n"
                 return self.python
         await put_bytes(self._env, SERVER_SOURCE, f"{self.base}/server.py")
+        if self.library:
+            await put_bytes(self._env, repl_lib_src.SOURCE.encode(), f"{self.base}/lib.py")
         launch = (
-            f"cd {q(self.base)} && rm -rf in out llm ops && mkdir -p in out llm && "
+            f"cd {q(self.base)} && rm -rf in out llm ops bash{'' if self.library else ' lib.py'} && mkdir -p in out llm && "
             f"if command -v setsid >/dev/null 2>&1; then S=setsid; else S=; fi; "
             f"nohup $S python3 -u server.py {q(self.base)} {q(self._workdir)}{' ops' if self.track_operations else ''} "
             "> server.log 2>&1 < /dev/null & "
@@ -365,6 +370,11 @@ class Repl:
         raw = await run(self._env, f"cat {q(req)} && rm -f {q(req)}")
         try:
             data = json.loads(raw.stdout)
+            if isinstance(data, dict) and data.get("kind") == "mcp_start":
+                answer = await self._mcp_start(str(data.get("server")))
+                await put_bytes(self._env, json.dumps(answer).encode(), resp + ".tmp")
+                await run(self._env, f"mv {q(resp + '.tmp')} {q(resp)}")
+                return
             prompt, max_tokens = (
                 str(data["prompt"]),
                 int(data.get("max_tokens") or 4096),
@@ -388,6 +398,17 @@ class Repl:
             answer = {"error": f"{type(exc).__name__}: {str(exc)[:300]}"}
         await put_bytes(self._env, json.dumps(answer).encode(), resp + ".tmp")
         await run(self._env, f"mv {q(resp + '.tmp')} {q(resp)}")
+
+    async def _mcp_start(self, server: str) -> dict:
+        """Start (or reuse) the in-sandbox client of a declared MCP server for the REPL's mcp(); its directory."""
+        if self.mcp is None:
+            return {"error": "no MCP servers are declared for this task"}
+        if server not in self.mcp.servers:
+            return {"error": f"no declared MCP server named {server!r}; declared: {sorted(self.mcp.servers)}"}
+        try:
+            return {"text": await self.mcp._start(server, self._remaining())}
+        except Exception as exc:  # returned to the cell as an McpError, never swallowed
+            return {"error": f"{type(exc).__name__}: {str(exc)[:300]}"}
 
     async def _read(self, seq: int, start: int, end: int) -> str:
         log = shlex.quote(f"{self.base}/out/{seq}.log")

@@ -12,7 +12,7 @@ the model's wait, so a late answer is still written and Core can show it.
 """
 
 SOURCE = r'''
-import glob, json, os, subprocess, sys, threading, time, urllib.parse, urllib.request
+import glob, json, os, select, subprocess, sys, threading, time, urllib.parse, urllib.request
 
 D, KIND, TARGET = sys.argv[1], sys.argv[2], sys.argv[3:]
 LOCK = threading.Condition()
@@ -182,6 +182,13 @@ def main():
         return 1
     write("ready", init.get("result") or {})
     served = set()
+    wake = None  # a publisher may write a byte to D/wake after publishing a request: a hint only, never authority
+    try:
+        if not os.path.exists(os.path.join(D, "wake")):
+            os.mkfifo(os.path.join(D, "wake"), 0o600)
+        wake = os.open(os.path.join(D, "wake"), os.O_RDWR | os.O_NONBLOCK)  # own writer end: no EOF busy loop
+    except (OSError, AttributeError):
+        wake = None
     while True:
         for path in sorted(glob.glob(os.path.join(D, "req_*.json"))):
             if path in served:
@@ -200,7 +207,14 @@ def main():
                 write("resp_%s.json" % request["id"], reply)
 
             threading.Thread(target=answer, daemon=True).start()
-        time.sleep(0.05)
+        # Look again after 0.05 s, or at once when a publisher wrote to the wake pipe; the files stay the authority.
+        if wake is None:
+            time.sleep(0.05)
+        elif select.select([wake], [], [], 0.05)[0]:
+            try:
+                os.read(wake, 65536)
+            except OSError:
+                pass
 
 
 sys.exit(main())

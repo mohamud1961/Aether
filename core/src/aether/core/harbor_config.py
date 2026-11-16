@@ -135,6 +135,9 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         terminal_events=_choice(environ, "AETHER_CORE_TERMINAL_EVENTS", REPL_MODES, "off") == "on",
         fast_process_scan=_choice(environ, "AETHER_CORE_FAST_PROCESS_SCAN", REPL_MODES, "off") == "on",
         fast_mcp_wait=_choice(environ, "AETHER_CORE_FAST_MCP_WAIT", REPL_MODES, "off") == "on",
+        keep_cut_outputs=_choice(environ, "AETHER_CORE_KEEP_CUT_OUTPUTS", REPL_MODES, "off") == "on",
+        append_policy=environ.get("AETHER_CORE_APPEND_POLICY", "").strip() or "core64",
+        context_window=_window(environ),
         finish_settle=_choice(environ, "AETHER_CORE_FINISH_SETTLE", REPL_MODES, "off") == "on",
         finish_facts=_choice(environ, "AETHER_CORE_FINISH_FACTS", REPL_MODES, "off") == "on",
         env_map=_choice(environ, "AETHER_CORE_ENV_MAP", REPL_MODES, "off") == "on",
@@ -168,11 +171,12 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         outside_witness=_choice(environ, OUTSIDE_WITNESS_ENV, REPL_MODES, "off") == "on",  # A21
         mcp_idempotency=_choice(environ, MCP_IDEMPOTENCY_ENV, REPL_MODES, "off") == "on",  # A14
         browser_page_facts=_choice(environ, "AETHER_CORE_BROWSER_PAGE_FACTS", REPL_MODES, "off") == "on",  # C3
+        browser_effects=_choice(environ, "AETHER_CORE_BROWSER_EFFECTS", REPL_MODES, "off") == "on",  # C16
         task_at_first_observation=environ.get("AETHER_CORE_TASK_AT_FIRST_OBS") == "on", stated_use=environ.get("AETHER_CORE_STATED_USE") == "on", working=environ.get("AETHER_CORE_WORKING", "on"), start_note=environ.get("AETHER_CORE_START_NOTE", "start"), task_appendix_file=environ.get("AETHER_CORE_TASK_APPENDIX_FILE", ""), step0_file=environ.get("AETHER_CORE_STEP0_FILE", ""), agenda=environ.get("AETHER_CORE_AGENDA", "off"),  # study arms
         **state_service.settings(lambda name, modes, unset: _choice(environ, name, modes, unset), REPL_MODES, FACTS_MODES),
         image_region=_choice(environ, IMAGE_REGION_ENV, REPL_MODES, "off") == "on",
         image_compare=_choice(environ, IMAGE_COMPARE_ENV, REPL_MODES, "off") == "on",
-        toolset=_choice(environ, "AETHER_CORE_TOOLSET", ("full", "minimal"), "full"),  # tool screen T0
+        toolset=_choice(environ, "AETHER_CORE_TOOLSET", ("full", "minimal", "python"), "full"),  # T0 screen; B18
         image_effort=_choice(environ, "AETHER_CORE_IMAGE_EFFORT", ("", "low", "medium", "high", "xhigh"), ""))
 
 
@@ -239,8 +243,10 @@ def _replay(environ: Mapping[str, str], context: str) -> str:
     # does. Under "all", CLM's held() leaves every replayed reasoning out of the budget (10-27 board: a median 58% of
     # the largest request), so only a checkpoint, triggered by the rest of the context, ever drops it. "segment"
     # counts older replayed reasoning against the budget.
-    if value in ("all", "segment") and context != "clm":
+    if value == "segment" and context != "clm" or value == "all" and context not in ("clm", "append"):
         raise ConfigError(f"{REASONING_ENV}={value} needs model-managed context (clm)")
+    if context == "append" and value not in ("all", "none"):  # append never edits its history: all or nothing
+        raise ConfigError(f"{CONTEXT_ENV}=append needs {REASONING_ENV}=all or none")
     return value
 
 
@@ -262,3 +268,14 @@ def _calls(environ: Mapping[str, str]) -> str:
 
 def _parallel_reads(environ: Mapping[str, str]) -> bool:
     return _choice(environ, PARALLEL_ENV, REPL_MODES, "off") == "on"
+
+
+def _window(environ: Mapping[str, str]) -> int | None:
+    """AETHER_CORE_CONTEXT_WINDOW: the provider's context window in tokens, needed by context "append" (no default:
+    a guessed window would set every cut threshold wrong)."""
+    raw = environ.get("AETHER_CORE_CONTEXT_WINDOW", "").strip()
+    if not raw:
+        return None
+    if not raw.isdigit():
+        raise ConfigError(f"AETHER_CORE_CONTEXT_WINDOW must be a token count, got {raw!r}")
+    return int(raw)
