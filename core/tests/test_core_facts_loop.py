@@ -94,17 +94,27 @@ def test_harbor_configuration_enables_the_state_service_in_a_real_loop(tmp_path,
     work, bindir = _setup(tmp_path, monkeypatch, ("sh",))
     settings = {**BASE, "AETHER_CORE_CONTEXT": "project", "AETHER_CORE_START_COPY": "off",
                 "AETHER_CORE_MANAGED_FACTS": "on"}
-    config = dataclasses.replace(build_config(environ=settings), control_dir=str(tmp_path / "ctl"),
-                                 end_processes="stop")
-    client = ResponsesClient([turn_events(1, call=("finish", {"summary": "done"}, "c1"))])
-    result = asyncio.run(run_agent(
-        env=SharedPathEnv(work, bindir), task="Observe the environment.", workdir=str(work),
-        provider=provider(client, tmp_path / "calls"), timeout_s=600,
-        trace=Trace(tmp_path / "trace.jsonl"), config=config,
-    ))
-    assert result.status == "finished"
-    assert any(isinstance(item.get("content"), str) and item["content"].startswith("[core facts]\n")
-               for item in client.requests[0]["input"])
+
+    def first_request(env_settings, name):
+        config = dataclasses.replace(build_config(environ=env_settings), control_dir=str(tmp_path / name),
+                                     end_processes="stop")
+        client = ResponsesClient([turn_events(1, call=("finish", {"summary": "done"}, "c1"))])
+        result = asyncio.run(run_agent(
+            env=SharedPathEnv(work, bindir), task="Observe the environment.", workdir=str(work),
+            provider=provider(client, tmp_path / f"calls-{name}"), timeout_s=600,
+            trace=Trace(tmp_path / f"trace-{name}.jsonl"), config=config,
+        ))
+        assert result.status == "finished"
+        return [item.get("content") if isinstance(item.get("content"), str) else json.dumps(item)
+                for item in client.requests[0]["input"]]
+
+    # Default (stable facts, 16 Nov): the facts arrive as an appended, versioned observation, never as pinned text.
+    contents = first_request(settings, "ctl")
+    assert any(c.startswith("[Core observation managed-facts ") and "\n[core facts]\n" in c for c in contents)
+    assert not any(isinstance(c, str) and c.startswith("[core facts]\n") for c in contents)
+    # Opt-out keeps the pinned block that is rewritten in place.
+    contents = first_request({**settings, "AETHER_CORE_STABLE_FACTS": "off"}, "ctl-off")
+    assert any(isinstance(c, str) and c.startswith("[core facts]\n") for c in contents)
     with pytest.raises(ConfigError):
         build_config(environ={**settings, "AETHER_CORE_MANAGED_FACTS": "invalid"})
     with pytest.raises(ValueError):

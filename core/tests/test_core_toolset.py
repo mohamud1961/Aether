@@ -35,3 +35,17 @@ def test_the_switch_is_explicit(monkeypatch):
     monkeypatch.setenv("AETHER_CORE_TOOLSET", "tiny")
     with pytest.raises(harbor_config.ConfigError):
         harbor_config.build_config()
+
+
+def test_stable_facts_is_the_default_and_can_be_turned_off(monkeypatch):
+    # 16 Nov lean screen F + H2 holdout: appended facts replaced in-place rewrites (cost 0.52x / 0.62x, passes equal).
+    for k, v in (("AETHER_CORE_REVIEW", "off"), ("AETHER_CORE_CONTEXT", "clm"), ("AETHER_CORE_REPL", "off"),
+                 ("AETHER_CORE_IMAGES", "off")):
+        monkeypatch.setenv(k, v)
+    monkeypatch.delenv("AETHER_CORE_STABLE_FACTS", raising=False)
+    assert harbor_config.build_config().stable_facts is True
+    monkeypatch.setenv("AETHER_CORE_STABLE_FACTS", "off")
+    assert harbor_config.build_config().stable_facts is False
+    monkeypatch.setenv("AETHER_CORE_STABLE_FACTS", "maybe")
+    with pytest.raises(harbor_config.ConfigError):
+        harbor_config.build_config()
