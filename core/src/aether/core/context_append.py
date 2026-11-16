@@ -90,7 +90,7 @@ class AppendContext:
     async def _save_index(self, older: list[dict[str, Any]], first: int, save: Callable[..., Awaitable[None]],
                           save_dir: str) -> None:
         """Write each cut-away tool result to ``save_dir`` and add one line per result: what call made it, where it
-        is, how big. Facts only; the files are the exact text the model was shown."""
+        is, how big, its first non-empty line. Facts only; the files are the exact text the model was shown."""
         calls = {c.get("id"): c.get("function") or {} for m in older if m.get("role") == "assistant"
                  for c in m.get("tool_calls") or ()}
         for offset, m in enumerate(older):
@@ -103,7 +103,11 @@ class AppendContext:
             fn = calls.get(m.get("tool_call_id"), {})
             args = str(fn.get("arguments", ""))
             args = args if len(args) <= 160 else args[:157] + "..."
-            self.index_lines.append(f"- {fn.get('name', 'tool')}({args}) -> {path} ({len(data):,} bytes)")
+            text = data.decode(errors="replace")
+            first_line = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
+            first_line = first_line if len(first_line) <= 100 else first_line[:97] + "..."
+            self.index_lines.append(f"- {fn.get('name', 'tool')}({args}) -> {path} ({len(data):,} bytes, "
+                                    f"{text.count(chr(10)) + 1} lines; first: {json.dumps(first_line)})")
 
     async def fit(self, provider: Any, task: str, messages: list[dict[str, Any]], *,
                   remaining_s: Callable[[], float], trace: Callable[..., None],

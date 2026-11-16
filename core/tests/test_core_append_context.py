@@ -129,9 +129,11 @@ def test_index_saves_every_cut_away_result_exactly_and_lists_it(tmp_path, index_
     assert lines
     shown = {m["tool_call_id"]: m["content"] for r in worker for m in r["messages"] if m["role"] == "tool"}
     for ln in lines:
-        path = ln.split(" -> ")[1].rsplit(" (", 1)[0]
+        path = ln.split(" -> ")[1].split(" (", 1)[0]
         saved = (tmp_path / "control" / "evidence" / path.rsplit("/", 1)[1]).read_text()
         assert saved in shown.values()  # the file is exactly a result the model was shown
+        head = next(x.strip() for x in saved.splitlines() if x.strip())[:97]
+        assert f'; first: {json.dumps(head)[:-1]}' in ln  # the preview is the file's own first line
 
 
 def test_none_replay_never_sends_reasoning_and_requests_still_extend(tmp_path, small_policy):
