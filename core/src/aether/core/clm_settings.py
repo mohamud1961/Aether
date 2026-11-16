@@ -26,6 +26,9 @@ class ClmSettings:
     nudge_ratios: tuple[float, ...] = (0.5, 0.75)
     max_rollbacks: int = 0
     rollback_margin_tokens: int = 0  # after a rollback, keep rolling back until this many tokens are free (meta: 2048)
+    # AETHER_CORE_CLM_NUDGES=late: the paper's runs (arXiv 2609.37725, App. E) give one editing reminder 2,048 tokens
+    # before the budget instead of ratio and urgent nudges. 0 = Core's nudges. Re-armed once the room grows again.
+    reminder_room_tokens: int = 0
     urgent_every_turns: int = 3  # C2 row 1: the urgent nudge fired on 10 consecutive turns (meta: 1, every turn)
     keep_recent_tokens: int = 8_000
     # Experimental: cut complete old turns without an auxiliary summary call.

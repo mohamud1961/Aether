@@ -129,6 +129,8 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
             replay_reasoning=_replay(environ, context),
             **_budget(environ),
             **_clm_profile(environ),
+            reminder_room_tokens=2_048 if _choice(environ, "AETHER_CORE_CLM_NUDGES", ("core", "late"), "core") == "late"
+            else 0,
             notes_voice=_choice(environ, NOTES_ENV, NOTES_VOICES, "legacy"),
             attest_original_history=(
                 _choice(environ, CONTEXT_EVIDENCE_ENV, CONTEXT_EVIDENCE_MODES, "off") != "off"

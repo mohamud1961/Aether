@@ -77,6 +77,7 @@ class ClmContext(ClmMirror):
     _recent_outputs: list[int] = field(default_factory=list)
     _turn: int = 0
     _last_urgent: int = -URGENT_EVERY_TURNS
+    _reminder_armed: bool = True
     # Retained across a copied/resumed context; never inferred from user text.
     _managed_facts_pin_index: int | None = field(default=None, init=False, repr=False)
     # id(message) -> (message, provider reasoning tokens); None means provider usage was not reported
@@ -276,6 +277,20 @@ class ClmContext(ClmMirror):
             f" The whole request is about {used + outside} tokens: {outside} of them are your earlier reasoning, "
             "sent back as well but outside this budget."
         ) if outside else ""
+        late = getattr(self.settings, "reminder_room_tokens", 0)
+        if late:  # one reminder near the limit; nothing earlier (16 Nov: 0/183 edits after a sub-75% nudge)
+            if room > late:
+                self._reminder_armed = True
+                return ""
+            if not self._reminder_armed:
+                return ""
+            self._reminder_armed = False
+            self.stats.urgent_nudges += 1
+            return (
+                f"[context] {used} of {limit} tokens of your editable context used; about {room} left before "
+                f"{fate}. {goes_on}{whole} Condense {self.settings.mirror_path} now (keep facts, paths, decisions and "
+                "open problems; drop the rest)."
+            )
         if used > limit // 2 and room < max(0.10 * limit, 2 * largest):
             if self._turn - self._last_urgent < getattr(self.settings, "urgent_every_turns", URGENT_EVERY_TURNS):
                 return ""

@@ -173,3 +173,44 @@ def test_fault_an_index_file_cannot_be_saved_the_run_stops_honestly_and_no_cut_i
     assert not [r for r in rows if r["event"] == "context_append_cut" and r.get("ok")]
     worker = [r for r in client.requests if "tools" in r]
     assert "S1" not in json.dumps(worker[-1]["messages"])  # the summary never became the only copy
+
+
+# --- late reminder (AETHER_CORE_CLM_NUDGES=late) -------------------------------------------------------------------
+
+def test_late_reminder_switch_is_off_by_default():
+    assert hc.build_config(environ=BASE).clm.reminder_room_tokens == 0
+    assert hc.build_config(environ={**BASE, "AETHER_CORE_CLM_NUDGES": "late"}).clm.reminder_room_tokens == 2_048
+    with pytest.raises(hc.ConfigError):
+        hc.build_config(environ={**BASE, "AETHER_CORE_CLM_NUDGES": "early"})
+
+
+def test_late_reminder_fires_once_near_the_limit_and_rearms_after_room_returns():
+    ctx = ClmContext(pinned=[], settings=ClmSettings(budget_tokens=10_000, reserve_tokens=0,
+                                                     reminder_room_tokens=2_048))
+    ctx.chars_per_token = 1.0
+    ctx.append({"role": "user", "content": "x" * 1_000})  # held counts ~1,500 tokens of tool overhead too
+    notes = []
+    for size in (1_000, 1_500, 1_500, 1_000):  # ~35%, 50%, 65%, 75%: no ratio or urgent nudge
+        ctx.append({"role": "user", "content": "x" * size})
+        notes.append(ctx.nudge())
+    assert notes == ["", "", "", ""]
+    ctx.append({"role": "user", "content": "x" * 500})  # room now under 2,048
+    first = ctx.nudge()
+    assert first.startswith("[context] ") and "left before older turns are replaced by a summary" in first
+    assert ctx.nudge() == ""  # once, not every turn
+    ctx.editable[:] = [{"role": "user", "content": "short"}]  # the model condensed
+    assert ctx.nudge() == ""
+    ctx.append({"role": "user", "content": "x" * 9_500})
+    assert ctx.nudge().startswith("[context] ")  # re-armed after the room came back
+
+
+def test_late_reminder_in_the_real_loop_replaces_every_ratio_and_urgent_nudge(tmp_path):
+    settings = ClmSettings(budget_tokens=16_000, mirror_path=str(tmp_path / "ctx" / "LIVE_CTX.txt"),
+                           reminder_room_tokens=2_048)
+    config = CoreConfig(context="clm", clm=settings, control_dir=str(tmp_path / "ctl"))
+    result, _, rows = run(tmp_path, [big(i) for i in range(10)], config,
+                          text_script=[text(f"## Goal\nS{k}") for k in range(6)])
+    assert result.status == "finished", result.error
+    notes = [r["note"] for r in rows if r["event"] == "context_nudge"]
+    assert notes and all(n.startswith("[context] ") and "left before" in n for n in notes)
+    assert not any("% of its" in n or "[context: urgent]" in n for n in notes)
