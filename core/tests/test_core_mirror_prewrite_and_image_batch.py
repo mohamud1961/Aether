@@ -182,11 +182,12 @@ def test_image_batch_breaks_the_prefix_once_per_batch_and_batch_one_every_time()
     assert breaks(4) == 2  # images 6 and 10 drop four at a time
 
 
-def test_image_batch_env_is_wired_and_defaults_to_one():
+def test_image_batch_env_is_wired_and_defaults_to_four():
     from aether.core import harbor_config as hc
 
     base = {hc.REVIEW_ENV: "off", hc.CONTEXT_ENV: "clm", hc.REPL_ENV: "off", hc.IMAGES_ENV: "on"}
-    assert hc.build_config(environ=base).clm.image_batch == 1
+    assert hc.build_config(environ=base).clm.image_batch == 4
+    assert hc.build_config(environ={**base, hc.IMAGE_BATCH_ENV: "1"}).clm.image_batch == 1
     assert hc.build_config(environ={**base, hc.IMAGE_BATCH_ENV: "4"}).clm.image_batch == 4
     with pytest.raises(hc.ConfigError):
         hc.build_config(environ={**base, hc.IMAGE_BATCH_ENV: "5"})

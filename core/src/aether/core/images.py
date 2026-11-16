@@ -192,7 +192,7 @@ def limit(
 ) -> list[dict[str, Any]]:
     """Retain a recent suffix of image observations within the image budget.
 
-    ``batch`` > 1 (AETHER_CORE_IMAGE_BATCH, default 1): the oldest images leave in groups of ``batch``, so the shown
+    ``batch`` > 1 (AETHER_CORE_IMAGE_BATCH, Harbor default 4 since board IB, 16 Nov: passes 3/6 = S, cost 0.63x): the oldest images leave in groups of ``batch``, so the shown
     set changes once per ``batch`` new images instead of on every new one; between drops up to keep + batch - 1
     images are shown. Cost scan 16 Nov: replacing one older image with a placeholder mid-history re-billed the whole
     request after it uncached (93% of cache-miss tokens on the current boards, up to 28K tokens per drop).
