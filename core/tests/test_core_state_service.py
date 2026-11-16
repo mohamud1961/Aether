@@ -272,3 +272,23 @@ def test_e15_known_bad_a_same_size_rewrite_with_restored_mtime_still_moves_the_v
 def test_e15_switch_maps_to_the_config():
     assert build_config(environ=BASE).check_versions is False
     assert build_config(environ={**BASE, "AETHER_CORE_CHECK_VERSIONS": "on"}).check_versions is True
+
+
+MACHINE = ("machine: cpus 8 (cgroup quota 1.0); memory 32088 MiB total, {mem} MiB available, cgroup limit 2048 MiB; "
+           "disk free: {disk} MiB at /, {disk} MiB at /")
+
+
+def _env(mem, disk, avail="python3 git"):
+    return f"os: Ubuntu 24.04\navailable: {avail}\n" + MACHINE.format(mem=mem, disk=disk)
+
+
+def test_known_bad_free_memory_and_disk_drift_is_not_an_environment_change():
+    """Drift rewrote the pinned block near the top of each request and cost the whole prompt cache (16 Nov)."""
+    assert state_service.env_change(_env(30370, 36580), _env(30456, 36361)) == ""
+
+
+def test_a_material_machine_change_is_still_reported():
+    assert "updated: machine" in state_service.env_change(_env(30370, 36580), _env(30370, 1200))
+    assert "updated: machine" in state_service.env_change(_env(30370, 36580), _env(9000, 36580))
+    changed = state_service.env_change(_env(30370, 36580), _env(30400, 36500, "python3 git gcc"))
+    assert "now on PATH: gcc" in changed and "machine" not in changed

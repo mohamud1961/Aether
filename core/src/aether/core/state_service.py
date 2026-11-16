@@ -165,9 +165,29 @@ def _env_lines(text: str) -> dict[str, str]:
             if ":" in line and not line.startswith("  ")}
 
 
+# Free memory and free disk drift by a few MiB between measurements (other processes on the host, logs, caches).
+# Counting that drift as a change rewrote the pinned block near the top of the request, so the provider's prompt
+# cache missed the whole request after it (16 Nov: chess L-1 calls 3-7 cached 0 tokens, each rewrite only moved
+# "30370 -> 30456 MiB available"). A move counts when it exceeds both bounds below.
+_VOLATILE = re.compile(r"(\d+) MiB (available|at )")
+DRIFT_MIB, DRIFT_SHARE = 512, 0.10
+
+
+def _machine_same(a: str, b: str) -> bool:
+    """Same machine line apart from free-memory/free-disk drift within DRIFT_MIB or DRIFT_SHARE."""
+    if _VOLATILE.sub(r"N MiB \2", a) != _VOLATILE.sub(r"N MiB \2", b):
+        return False
+    for x, y in zip((int(m.group(1)) for m in _VOLATILE.finditer(a)), (int(m.group(1)) for m in _VOLATILE.finditer(b))):
+        if abs(x - y) > DRIFT_MIB and abs(x - y) > DRIFT_SHARE * max(x, y):
+            return False
+    return True
+
+
 def env_change(old: str, new: str) -> str:
     """A short account of what differs between two environment blocks ('' when nothing does)."""
     before, after = _env_lines(old), _env_lines(new)
+    if "machine" in before and "machine" in after and _machine_same(before["machine"], after["machine"]):
+        after = {**after, "machine": before["machine"]}
     if before == after:
         return ""
     have = lambda d: set(d.get("available", "").split(":", 1)[-1].split())  # noqa: E731
