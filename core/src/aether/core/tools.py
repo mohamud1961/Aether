@@ -8,6 +8,7 @@ from .conventions import CONVENTIONS
 from .clm import HISTORY_PATH, MIRROR_PATH
 from .terminal import MAX_WAIT_S
 from .tool_validate import validate_call  # noqa: F401  (re-exported for the loop and tests)
+from .apply_patch import TOOL as APPLY_PATCH  # study arm CX (toolset codex)
 
 SOLVER_INTRO = """You are an expert engineer working autonomously in a Linux container to complete the task \
 you are given. No one will answer questions; keep working until the task is done.
@@ -45,6 +46,7 @@ it, when you expected it to finish or exit, is hung or looping; find out why rat
 improve it.
 - Call finish only when every requirement is met and checked, or when no time is left."""
 FILE_TOOLS_LINE = "- read_file, write_file, edit_file: read with line numbers, create or replace files, and make exact edits.\n"
+PATCH_LINE = "- apply_patch: create, edit, move or delete files with one patch.\n"  # study arm CX (toolset codex)
 TOOLS_DOC = TOOLS_DOC.replace("{file_tools}", FILE_TOOLS_LINE)
 BASE_PROMPT = SOLVER_INTRO + TOOLS_DOC + SOLVER_WORKING
 # Study arm AETHER_CORE_WORKING=lean (11 Nov): the same block without the three thoroughness lines. Luna rewrote git
@@ -408,6 +410,7 @@ def system_prompt(
     file_tools: bool = True,
     python_only: bool = False,
     mcp_servers: tuple[str, ...] = (),
+    patch: bool = False,
 ) -> str:
     context = CLM_DOC.replace(MIRROR_PATH, mirror_path).replace(
         HISTORY_PATH, history_path
@@ -426,7 +429,7 @@ def system_prompt(
         head, sep, tail = base.rpartition("\n- Call finish only when")
         base = head + HYGIENE_DOC[hygiene] + sep + tail
     if not file_tools:  # tool-screen arm T0 (AETHER_CORE_TOOLSET=minimal): never describe a tool that is not offered
-        base = base.replace(FILE_TOOLS_LINE, "")
+        base = base.replace(FILE_TOOLS_LINE, PATCH_LINE if patch else "")
     return (
         (VERIFIER_PROMPT if verifier else base).format(
             python=PYTHON_DOC.format(version=python_version) if python_version else "",
@@ -459,6 +462,7 @@ READ_HISTORY = {
 }
 
 
+
 def tools(
     *,
     python: bool,
@@ -468,6 +472,7 @@ def tools(
     terminal_events: bool = False,
     file_tools: bool = True,
     python_only: bool = False,
+    patch: bool = False,
 ) -> list[dict[str, Any]]:
     if python_only:  # B18: the REPL is the only action tool
         return [PYTHON, *([VIEW_IMAGE] if images else []), *([READ_HISTORY] if history else []),
@@ -477,6 +482,7 @@ def tools(
         *([TERMINAL_WAIT] if terminal_events else []),
         *([PYTHON] if python else []),
         *([READ_FILE, WRITE_FILE, EDIT_FILE] if file_tools else []),
+        *([APPLY_PATCH] if patch else []),
         *([VIEW_IMAGE] if images else []),
         *([READ_HISTORY] if history else []),
         VERDICT_FINISH if verdict else FINISH,

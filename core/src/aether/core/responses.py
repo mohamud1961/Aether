@@ -12,6 +12,7 @@ summary goes to ``Turn.reasoning`` for the trace only.
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from typing import Any
@@ -21,14 +22,25 @@ from .provider import ChatProvider, IncompleteStream, Turn
 INCLUDE = ["reasoning.encrypted_content"]
 
 
-def tool_spec(spec: dict[str, Any]) -> dict[str, Any]:
-    """A Chat Completions tool definition in Responses form (the function fields move up one level)."""
+def tool_spec(spec: dict[str, Any], strict: bool | None = None) -> dict[str, Any]:
+    """A Chat Completions tool definition in Responses form (the function fields move up one level).
+
+    ``strict``: the value sent when the tool sets none. ``None`` sends nothing, and the provider's default applies:
+    for Luna that default constrains every call to fill every field (16 Nov probe: an optional ``compare`` and
+    ``region`` filled 4/4 with the field unset, 0/4 with ``strict: false``; live, 27/27 view_image calls). Codex
+    sends ``strict: false`` on its function tools. A tool with ``aether_freeform`` goes out as a freeform grammar
+    tool whose call text arrives as ``{"input": text}`` (apply_patch, study arm CX)."""
     fn = spec["function"]
+    if spec.get("aether_freeform"):
+        return {"type": "custom", "name": fn["name"], "description": fn.get("description", ""),
+                "format": spec["aether_freeform"]}
     out = {"type": "function", "name": fn["name"], "parameters": fn["parameters"]}
     if fn.get("description"):
         out["description"] = fn["description"]
     if "strict" in fn:
         out["strict"] = fn["strict"]
+    elif strict is not None:
+        out["strict"] = strict
     return out
 
 
@@ -52,9 +64,11 @@ def _text(content: Any) -> str:
     return content or ""
 
 
-def input_items(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Core's chat-shaped history as Responses input items, in order."""
+def input_items(messages: list[dict[str, Any]], freeform: frozenset[str] = frozenset()) -> list[dict[str, Any]]:
+    """Core's chat-shaped history as Responses input items, in order. Calls to a ``freeform`` tool go back as the
+    custom tool call and output the provider produced."""
     items: list[dict[str, Any]] = []
+    custom: set[str] = set()
     for msg in messages:
         role = msg.get("role")
         if role in ("system", "user", "developer"):
@@ -72,6 +86,11 @@ def input_items(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 items.append({"role": "assistant", "content": _text(content)})
             for call in calls:
                 fn = call["function"]
+                if fn["name"] in freeform:
+                    custom.add(call["id"])
+                    text = json.loads(fn["arguments"] or "{}").get("input", "")
+                    items.append({"type": "custom_tool_call", "call_id": call["id"], "name": fn["name"], "input": text})
+                    continue
                 items.append(
                     {
                         "type": "function_call",
@@ -83,7 +102,7 @@ def input_items(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         elif role == "tool":
             items.append(
                 {
-                    "type": "function_call_output",
+                    "type": "custom_tool_call_output" if msg["tool_call_id"] in custom else "function_call_output",
                     "call_id": msg["tool_call_id"],
                     "output": _text(msg.get("content")),
                 }
@@ -123,9 +142,10 @@ class ResponsesProvider(ChatProvider):
 
     def __init__(
         self, client: Any, *, cache_key: str | None = None, chain: bool = False,
-        native_compaction: int | None = None, **kwargs: Any
+        native_compaction: int | None = None, tool_strict: bool | None = None, **kwargs: Any
     ) -> None:
         super().__init__(client, **kwargs)
+        self.tool_strict = tool_strict  # see tool_spec; None leaves the provider default
         if native_compaction is not None and (chain or native_compaction < 1000):
             # the provider says never to prune a previous_response_id chain; Core prunes before the newest item
             raise ValueError("native compaction needs chain off and a threshold of at least 1000 tokens")
@@ -163,14 +183,14 @@ class ResponsesProvider(ChatProvider):
             params["reasoning"] = {"effort": effort, "summary": "auto"}
         request: dict[str, Any] = {
             "model": self.model,
-            "input": input_items(messages),
+            "input": input_items(messages, frozenset(t["function"]["name"] for t in tools or () if t.get("aether_freeform"))),
             "max_output_tokens": max_tokens,
         }
         if tools is None:
             params.pop("tool_choice", None)
             params.pop("parallel_tool_calls", None)
         else:
-            request["tools"] = [tool_spec(t) for t in tools]
+            request["tools"] = [tool_spec(t, self.tool_strict) for t in tools]
         request["params"] = params
         return request
 
@@ -210,6 +230,12 @@ class ResponsesProvider(ChatProvider):
                             "id": item.get("call_id", ""),
                             "name": item.get("name", ""),
                             "arguments": item.get("arguments", ""),
+                        }
+                    elif item.get("type") == "custom_tool_call":  # freeform tool: its text is the one argument
+                        turn.streamed_calls[len(turn.streamed_calls)] = {
+                            "id": item.get("call_id", ""),
+                            "name": item.get("name", ""),
+                            "arguments": json.dumps({"input": item.get("input", "")}),
                         }
                 elif kind in ("response.completed", "response.incomplete"):
                     final = event.response
@@ -276,7 +302,8 @@ class ResponsesProvider(ChatProvider):
         if len(full) <= len(sent) or full[: len(sent)] != sent:
             return {}
         rest = full[len(sent):]
-        while rest and (rest[0].get("type") in ("reasoning", "function_call") or rest[0].get("role") == "assistant"):
+        while rest and (rest[0].get("type") in ("reasoning", "function_call", "custom_tool_call")
+                        or rest[0].get("role") == "assistant"):
             rest = rest[1:]
         if not rest:
             return {}

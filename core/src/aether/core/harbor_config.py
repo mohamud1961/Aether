@@ -36,6 +36,7 @@ CALLS_ENV, CALLS_MODES = "AETHER_CORE_CALLS", ("one", "many")
 REASONING_ENV = "AETHER_CORE_REASONING"
 NATIVE_COMPACTION_ENV = "AETHER_CORE_NATIVE_COMPACTION"  # optional token threshold (Responses only; E18 K1)
 CHAIN_ENV = "AETHER_CORE_CHAIN"  # optional on/off (Responses only): previous_response_id chaining, stored responses
+TOOL_STRICT_ENV = "AETHER_CORE_TOOL_STRICT"  # study arm SF: "off" sends strict=false on Responses tools
 MAX_OUTPUT_ENV = "AETHER_CORE_MAX_OUTPUT"  # optional; per-turn output ceiling in tokens (default 16384); see _max_output
 BUDGET_ENV = "AETHER_CORE_CONTEXT_BUDGET"  # optional; editable-context tokens (default 32000); see _budget
 # optional; unset means "off". "once": one independent check of the first finish by the same model in a fresh
@@ -178,7 +179,8 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         **state_service.settings(lambda name, modes, unset: _choice(environ, name, modes, unset), REPL_MODES, FACTS_MODES),
         image_region=_choice(environ, IMAGE_REGION_ENV, REPL_MODES, "off") == "on",
         image_compare=_choice(environ, IMAGE_COMPARE_ENV, REPL_MODES, "off") == "on",
-        toolset=_choice(environ, "AETHER_CORE_TOOLSET", ("full", "minimal", "python"), "full"),  # T0 screen; B18
+        toolset=_choice(environ, "AETHER_CORE_TOOLSET", ("full", "minimal", "python", "codex"), "full"),  # T0; B18; CX
+        task_repeat=int(_choice(environ, "AETHER_CORE_TASK_REPEAT", ("1", "2", "3"), "1")),  # study arm R2
         image_effort=_choice(environ, "AETHER_CORE_IMAGE_EFFORT", ("", "low", "medium", "high", "xhigh"), ""))
 
 

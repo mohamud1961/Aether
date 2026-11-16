@@ -110,10 +110,15 @@ class CoreConfig:
     append_policy: str = "core64"  # context "append": a name in context_append_policies.POLICIES
     context_window: int | None = None  # context "append": the provider's window in tokens (required; no default)
     keep_cut_outputs: bool = False  # opt-in evidence (D18): copy each cut terminal span next to the trace at run end
+    task_repeat: int = 1  # study arm R2: the first task message given this many times (prompt repetition)
 
     def __post_init__(self) -> None:
-        if self.toolset not in ("full", "minimal", "python"):
-            raise ValueError("toolset must be full, minimal or python")
+        if self.toolset not in ("full", "minimal", "python", "codex"):
+            raise ValueError("toolset must be full, minimal, python or codex")
+        if self.task_repeat not in (1, 2, 3):
+            raise ValueError("task_repeat must be 1, 2 or 3")
+        if self.toolset == "codex" and self.repl:  # study arm CX: terminal + apply_patch (+ view_image), as Codex
+            raise ValueError("codex toolset cannot expose: repl")
         if self.toolset == "python":
             conflicts = [name for name, enabled in (
                 ("repl off", not self.repl), ("browser", self.browser is not None), ("terminal_events", self.terminal_events),

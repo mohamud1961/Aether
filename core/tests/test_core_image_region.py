@@ -90,3 +90,44 @@ def test_without_the_flag_view_image_has_no_region(tmp_path):
     assert "region" not in view["function"]["parameters"]["properties"]
     tool = next(m for m in client.requests[1]["messages"] if m.get("role") == "tool")
     assert "unknown argument 'region'" in tool["content"]
+
+
+def _images_in(client, request):
+    msgs = client.requests[request]["messages"]
+    tool_i = max(i for i, m in enumerate(msgs) if m.get("role") == "tool")
+    return msgs[tool_i]["content"], [p for p in msgs[tool_i + 1]["content"] if p.get("type") == "image_url"]
+
+
+def test_an_empty_region_means_the_whole_image(tmp_path):
+    """16 Nov live: Luna sent `region: []` and got 'region must be [left, top, right, bottom]' (2 calls)."""
+    pytest.importorskip("PIL")
+    (tmp_path / "work").mkdir()
+    _wide(tmp_path / "work" / "strip.png")
+    script = [
+        call("view_image", {"path": "strip.png", "region": []}, "c1"),
+        call("finish", {"summary": "x"}, "c2"),
+    ]
+    _, _, client = _run(tmp_path, script, config=CoreConfig(images=True, image_region=True))
+    desc, whole = _shown(client, 1)
+    assert whole.size == (1024, 34) and "region [" not in desc and "error" not in desc
+
+
+def test_a_compare_naming_the_same_view_is_shown_once(tmp_path):
+    """16 Nov live: 27/27 compare calls named the main image and region again, so each view sent one image twice."""
+    pytest.importorskip("PIL")
+    (tmp_path / "work").mkdir()
+    _wide(tmp_path / "work" / "strip.png")
+    same = {"path": "strip.png", "region": [0, 0, 100, 100]}
+    script = [
+        call("view_image", {**same, "compare": dict(same)}, "c1"),
+        call("view_image", {"path": "strip.png", "region": [], "compare": {"path": "./strip.png", "region": []}}, "c2"),
+        call("view_image", {**same, "compare": {"path": "strip.png", "region": [2000, 0, 2100, 100]}}, "c3"),
+        call("finish", {"summary": "x"}, "c4"),
+    ]
+    _, _, client = _run(tmp_path, script,
+                        config=CoreConfig(images=True, image_region=True, image_compare=True))
+    for request in (1, 2):
+        result, parts = _images_in(client, request)
+        assert len(parts) == 1 and "same image and region" in result
+    result, parts = _images_in(client, 3)  # a real comparison still shows both
+    assert len(parts) == 2 and "same image" not in result

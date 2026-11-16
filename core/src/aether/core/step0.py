@@ -15,10 +15,15 @@ from typing import Any
 GO = "Now do the task."
 
 
-def task_messages(path: str, task: str, appendix: str, tail: str) -> list[dict[str, Any]]:
-    """The messages that follow the system prompt. Without a step-0 record this is the one task message as before."""
+def task_messages(path: str, task: str, appendix: str, tail: str, repeat: int = 1) -> list[dict[str, Any]]:
+    """The messages that follow the system prompt. Without a step-0 record this is the one task message as before.
+    ``repeat`` (study arm R2, prompt repetition, Leviathan et al. 2025): the whole message, identically, that many
+    times in one message."""
     if not path:
-        return [{"role": "user", "content": f"{task}{appendix}\n\n{tail}"}]
+        once = f"{task}{appendix}\n\n{tail}"
+        return [{"role": "user", "content": "\n\n".join([once] * repeat)}]
+    if repeat != 1:
+        raise ValueError("task_repeat needs no step-0 record")
     with open(path, encoding="utf-8") as handle:
         record = json.load(handle)
     question, answer = str(record["question"]).strip(), str(record["answer"]).strip()

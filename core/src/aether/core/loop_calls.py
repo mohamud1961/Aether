@@ -286,20 +286,26 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
     if name == "mcp" and getattr(s, "mcp", None):
         return await s.mcp.use(args, s.remaining()), False
     if name == "view_image":
-        path = s.files.resolve(args["path"])
-        other = args.get("compare")
+        # An empty region is the whole image; a compare naming the same file and region again is the same view (16 Nov
+        # live: 27/27 compares did this and sent every image twice). Both are shown once, and the result says so.
+        path, region = s.files.resolve(args["path"]), args.get("region") or None
+        other, same = args.get("compare"), ""
         if other is not None:
-            other_path = s.files.resolve(other["path"])
-            desc, url, other_desc, other_url = await images.compare(
-                s.env, path, args.get("region"), other_path, other.get("region")
-            )
-            s.pending_images.append(images.comparison_message(desc, url, other_desc, other_url))
-            s.images_viewed += 2
-            return f"[images {desc} and {other_desc}; shown below]", False
-        desc, url = await images.load(s.env, path, region=args.get("region"))
+            other_path, other_region = s.files.resolve(other["path"]), other.get("region") or None
+            if (other_path, other_region) != (path, region):
+                desc, url, other_desc, other_url = await images.compare(s.env, path, region, other_path, other_region)
+                s.pending_images.append(images.comparison_message(desc, url, other_desc, other_url))
+                s.images_viewed += 2
+                return f"[images {desc} and {other_desc}; shown below]", False
+            same = "; compare named the same image and region, so it is shown once"
+        desc, url = await images.load(s.env, path, region=region)
         s.pending_images.append(images.message(desc, url))
         s.images_viewed += 1
-        return f"[image {desc}; shown below]", False
+        return f"[image {desc}; shown below{same}]", False
+    if name == "apply_patch":  # study arm CX (toolset codex)
+        from . import apply_patch
+
+        return await apply_patch.apply(s.files, s.env, str(args.get("input", ""))), False
     if name == "read_file":
         return await s.files.read(
             args["path"],

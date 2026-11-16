@@ -25,6 +25,7 @@ def assemble(s: Any, config: Any, python: str) -> bool:
         terminal_events=config.terminal_events and config.role == "worker",
         file_tools=config.toolset == "full",
         python_only=python_only,
+        patch=config.toolset == "codex",
     )
     if python_only and not python:
         raise RuntimeError("toolset=python needs a working python3 in the task environment")

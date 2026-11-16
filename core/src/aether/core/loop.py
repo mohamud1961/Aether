@@ -169,6 +169,7 @@ async def run_agent(
                         notes=config.clm.notes_voice,
                         file_tools=config.toolset == "full",
                         python_only=config.toolset == "python",
+                        patch=config.toolset == "codex",
                         mcp_servers=tuple(x["name"] for x in getattr(config, "mcp_servers", ())),
                     )
                     + (runstate.STATE_DOC if s.state else "")
@@ -180,6 +181,7 @@ async def run_agent(
                     _appendix(config) + agenda_text,
                     f"(Working directory: {workdir}. Time limit: {timeout_s:.0f}s.)"
                     + "".join(f"\n{x}" for x in (start_note, getattr(s, "forks_note", "")) if x),
+                    repeat=getattr(config, "task_repeat", 1),
                 ),
             ]
             if config.context == "clm":

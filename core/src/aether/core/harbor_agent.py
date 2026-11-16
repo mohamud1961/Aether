@@ -36,6 +36,7 @@ from .harbor_config import (  # noqa: F401  (re-exported: launchers and tests im
     CALLS_FILE,
     CALLS_MODES,
     CHAIN_ENV,
+    TOOL_STRICT_ENV,
     CONTEXT_ENV,
     CONTEXT_EVIDENCE_ENV,
     ConfigError,
@@ -132,7 +133,11 @@ def build_provider(
         from .responses import ResponsesProvider
 
         chain = _choice(environ, CHAIN_ENV, REPL_MODES, "off") == "on"
-        return ResponsesProvider(client, model=model, params=params, log=log, chain=chain, native_compaction=native)
+        strict = _choice(environ, TOOL_STRICT_ENV, ("default", "off"), "default")  # study arm SF
+        return ResponsesProvider(client, model=model, params=params, log=log, chain=chain, native_compaction=native,
+                                 tool_strict=False if strict == "off" else None)
+    if environ.get("AETHER_CORE_TOOLSET") == "codex":
+        raise ValueError("AETHER_CORE_TOOLSET=codex needs the Responses request shape (apply_patch is a freeform tool)")
     if native is not None:
         raise ValueError(f"{NATIVE_COMPACTION_ENV} needs the Responses request shape")
     return (StrictChatProvider if _choice(environ, "AETHER_CORE_STRICT_TOOLS", REPL_MODES, "off") == "on" else ChatProvider)(
