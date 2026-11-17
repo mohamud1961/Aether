@@ -220,3 +220,11 @@ async def _fit_append(s: _Session) -> bool:
     for key, value in usage.items():
         s.result.sub_usage[key] = s.result.sub_usage.get(key, 0) + value
     return True
+
+
+def calibrate(ctx, request_chars: int, turn) -> None:
+    """Correct the chars-per-token estimate from the provider's prompt count. A turn that ran hosted searches bills
+    their results as input although they are never replayed, so its count says nothing about the request: G10c fin
+    (17 Nov) recalibrated on 81 such turns and checkpointed 43 times, each right after a search turn."""
+    if ctx is not None and not turn.web_searches:
+        ctx.calibrate(request_chars, turn.usage.get("input", 0))

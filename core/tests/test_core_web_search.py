@@ -50,3 +50,24 @@ def test_the_switch_needs_the_responses_shape():
     assert "needs the Responses request shape (a hosted provider tool)" in src
     with pytest.raises(Exception):
         ha._choice({ha.WEB_SEARCH_ENV: "maybe"}, ha.WEB_SEARCH_ENV, ha.REPL_MODES, "off")
+
+
+class _Ctx:
+    def __init__(self):
+        self.calls = []
+
+    def calibrate(self, chars, tokens):
+        self.calls.append((chars, tokens))
+
+
+def test_a_search_turn_does_not_recalibrate_the_token_estimate():
+    """G10c: hosted search results bill as input but are never replayed; calibrating on them shrank chars-per-token
+    and fired a checkpoint after every search turn (43/43). Known-bad: the old call site calibrated every turn."""
+    from aether.core.loop_context import calibrate
+
+    ctx = _Ctx()
+    calibrate(ctx, 40_000, Turn(usage={"input": 30_000}, web_searches=3))
+    assert ctx.calls == []
+    calibrate(ctx, 40_000, Turn(usage={"input": 12_000}))
+    assert ctx.calls == [(40_000, 12_000)]
+    calibrate(None, 40_000, Turn(usage={"input": 12_000}))  # no managed context: nothing to correct

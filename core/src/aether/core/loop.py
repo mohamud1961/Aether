@@ -29,12 +29,13 @@ from .tools import system_prompt
 from .loop_config import AFTER_CUT, AFTER_CUT_MAX_TOKENS, CONTEXT_MODES, MAX_OUTPUT_TOKENS, VERIFIER_ROLE, CoreConfig  # noqa: F401
 from .loop_session import _Session, _append, _publish_facts
 from .loop_calls import _run_calls, _since_last_event
-from .loop_context import _fit_append, _fit_context
+from .loop_context import _fit_append, _fit_context, calibrate
 from .context_append import AppendContext
 from .context_append_policies import POLICIES
 from .loop_finish import _appendix, _scheduled_review
 
 STOP_MARGIN_S = 15.0
+
 
 
 async def run_agent(
@@ -372,8 +373,7 @@ async def _loop(s: _Session) -> None:
         result.calls += 1
         for key, value in turn.usage.items():
             result.usage[key] = result.usage.get(key, 0) + value
-        if s.clm or s.append_ctx:
-            (s.clm or s.append_ctx).calibrate(result.request_chars[-1], turn.usage.get("input", 0))
+        calibrate(s.clm or s.append_ctx, result.request_chars[-1], turn)
         s.trace(
             "model",
             latency_s=round(turn.latency_s, 3),
