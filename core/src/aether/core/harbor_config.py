@@ -129,8 +129,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
             replay_reasoning=_replay(environ, context),
             **_budget(environ),
             **_clm_profile(environ),
-            reminder_room_tokens=2_048 if _choice(environ, "AETHER_CORE_CLM_NUDGES", ("core", "late"), "core") == "late"
-            else 0,
+            reminder_room_tokens=_reminder_room(environ),
             notes_voice=_choice(environ, NOTES_ENV, NOTES_VOICES, "legacy"),
             attest_original_history=(
                 _choice(environ, CONTEXT_EVIDENCE_ENV, CONTEXT_EVIDENCE_MODES, "off") != "off"
@@ -259,6 +258,13 @@ def _replay(environ: Mapping[str, str], context: str) -> str:
     if context == "append" and value not in ("all", "none"):  # append never edits its history: all or nothing
         raise ConfigError(f"{CONTEXT_ENV}=append needs {REASONING_ENV}=all or none")
     return value
+
+
+def _reminder_room(environ: Mapping[str, str]) -> int:
+    """AETHER_CORE_CLM_NUDGES: "late" (default since 17 Nov, boards PL/PL2) gives one reminder 2,048 tokens before the
+    editable limit; "core" restores the 50/75% and urgent nudges. The meta profile keeps its own nudges by default."""
+    meta = environ.get("AETHER_CORE_CLM_PROFILE", "").strip() == "meta"
+    return 2_048 if _choice(environ, "AETHER_CORE_CLM_NUDGES", ("core", "late"), "core" if meta else "late") == "late" else 0
 
 
 def _clm_profile(environ: Mapping[str, str]) -> dict:

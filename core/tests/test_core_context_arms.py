@@ -177,9 +177,10 @@ def test_fault_an_index_file_cannot_be_saved_the_run_stops_honestly_and_no_cut_i
 
 # --- late reminder (AETHER_CORE_CLM_NUDGES=late) -------------------------------------------------------------------
 
-def test_late_reminder_switch_is_off_by_default():
-    assert hc.build_config(environ=BASE).clm.reminder_room_tokens == 0
-    assert hc.build_config(environ={**BASE, "AETHER_CORE_CLM_NUDGES": "late"}).clm.reminder_room_tokens == 2_048
+def test_late_reminder_is_the_default_and_core_nudges_stay_selectable():
+    assert hc.build_config(environ=BASE).clm.reminder_room_tokens == 2_048
+    assert hc.build_config(environ={**BASE, "AETHER_CORE_CLM_NUDGES": "core"}).clm.reminder_room_tokens == 0
+    assert hc.build_config(environ={**BASE, "AETHER_CORE_CLM_PROFILE": "meta"}).clm.reminder_room_tokens == 0
     with pytest.raises(hc.ConfigError):
         hc.build_config(environ={**BASE, "AETHER_CORE_CLM_NUDGES": "early"})
 
