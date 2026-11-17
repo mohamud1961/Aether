@@ -34,6 +34,12 @@ MAX_PIXELS = (
 MAX_FILE_BYTES = MAX_PIXELS * 4 + 1_000_000
 MAX_SIDE = 1024
 KEEP_IMAGES = 2
+# AETHER_CORE_IMAGE_FIDELITY=original (default off): images go at their own size up to FULL_MAX_SIDE with
+# detail "original", and FULL_KEEP stay in the request. Codex sends view_image at detail "original" and keeps every
+# image; G7 freecad (17 Nov): Core read a drawing feature as raised in 5/5 runs, Codex cut it in 4/4 passes.
+FULL_MAX_SIDE = 6000
+FULL_KEEP = 8
+FULL_DETAIL = "original"
 HISTORY_FIELD = "aether_image_history"
 IMAGE_TOKENS = 1_500  # conservative per-image cost used by the context budget
 IMAGE_CHARS = int(IMAGE_TOKENS * 3)
@@ -62,7 +68,8 @@ def available() -> bool:
     return True
 
 
-async def load(env: Environment, path: str, region: list[int] | None = None) -> tuple[str, str]:
+async def load(env: Environment, path: str, region: list[int] | None = None,
+               max_side: int = MAX_SIDE) -> tuple[str, str]:
     """Return (description, data URL). Raises with a plain reason the model can act on. ``region``: crop to
     [left, top, right, bottom] of the source pixels before any downscale (image_region)."""
     # Size is checked inside the sandbox, before anything is copied to the host.
@@ -87,10 +94,10 @@ async def load(env: Environment, path: str, region: list[int] | None = None) -> 
         raise ValueError(
             f"{path} transfer differs from observed source bytes; image was not shown"
         )
-    return encode(data, path, region)
+    return encode(data, path, region, max_side)
 
 
-def encode(data: bytes, path: str, region: list[int] | None = None) -> tuple[str, str]:
+def encode(data: bytes, path: str, region: list[int] | None = None, max_side: int = MAX_SIDE) -> tuple[str, str]:
     from PIL import Image
 
     try:
@@ -116,8 +123,8 @@ def encode(data: bytes, path: str, region: list[int] | None = None) -> tuple[str
         zoom = min(4, MAX_SIDE // max(img.size))  # small text reads better enlarged
         if zoom > 1:
             img = img.resize((img.size[0] * zoom, img.size[1] * zoom), Image.LANCZOS)
-    if max(img.size) > MAX_SIDE:
-        img.thumbnail((MAX_SIDE, MAX_SIDE))
+    if max(img.size) > max_side:
+        img.thumbnail((max_side, max_side))
     out = io.BytesIO()
     img.save(out, format="PNG")
     crop = f", region {list(box)}" if box else ""
@@ -130,20 +137,21 @@ def encode(data: bytes, path: str, region: list[int] | None = None) -> tuple[str
     return desc, "data:image/png;base64," + base64.b64encode(out.getvalue()).decode()
 
 
-def message(desc: str, url: str) -> dict[str, Any]:
+def message(desc: str, url: str, detail: str | None = None) -> dict[str, Any]:
+    image = {"url": url, **({"detail": detail} if detail else {})}
     return {
         "role": "user",
         "content": [
             {"type": "text", "text": f"[view_image] {desc}"},
-            {"type": "image_url", "image_url": {"url": url}},
+            {"type": "image_url", "image_url": image},
         ],
     }
 
 
 async def compare(env: Environment, path: str, region: list[int] | None,
-                  other_path: str, other_region: list[int] | None) -> tuple[str, str, str, str]:
+                  other_path: str, other_region: list[int] | None, max_side: int = MAX_SIDE) -> tuple[str, str, str, str]:
     """Finish both reads before attaching either image."""
-    first, second = await asyncio.gather(load(env, path, region), load(env, other_path, other_region),
+    first, second = await asyncio.gather(load(env, path, region, max_side), load(env, other_path, other_region, max_side),
                                          return_exceptions=True)
     for result in (first, second):
         if isinstance(result, BaseException):
@@ -151,8 +159,8 @@ async def compare(env: Environment, path: str, region: list[int] | None,
     return (*first, *second)
 
 
-def comparison_message(desc: str, url: str, other_desc: str, other_url: str) -> dict[str, Any]:
-    return {"role": "user", "content": message(desc, url)["content"] + message(other_desc, other_url)["content"]}
+def comparison_message(desc: str, url: str, other_desc: str, other_url: str, detail: str | None = None) -> dict[str, Any]:
+    return {"role": "user", "content": message(desc, url, detail)["content"] + message(other_desc, other_url, detail)["content"]}
 
 
 def archive_note(message_id: int) -> str:

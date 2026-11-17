@@ -27,6 +27,7 @@ class CoreConfig:
     context: str = "project"
     repl: bool = False
     images: bool = False
+    image_fidelity: str = "standard"  # "original": full-size images at detail "original" (AETHER_CORE_IMAGE_FIDELITY)
     reviews: ReviewPlan = ReviewPlan()
     clm: ClmSettings = field(default_factory=ClmSettings)
     control_dir: str = CONTROL_DIR  # where terminals and the REPL keep their files in the sandbox

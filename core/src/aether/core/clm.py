@@ -134,7 +134,7 @@ class ClmContext(ClmMirror):
                 msg = {k: v for k, v in msg.items()
                        if k != "compaction" and (k != "reasoning_content" or include_reasoning)}
             out.append(msg)
-        return images.limit(out, batch=self.settings.image_batch)
+        return images.limit(out, keep=self.settings.image_keep, batch=self.settings.image_batch)
 
     def _last_model_turn(self) -> dict[str, Any] | None:
         # Core publishes versioned facts in an assistant carrier after tool results.
@@ -157,7 +157,7 @@ class ClmContext(ClmMirror):
         return [last] if last is not None and last.get("reasoning_content") else []
 
     def tokens(self, messages: list[dict[str, Any]] | None = None) -> int:
-        chars = images.size_chars(self.request() if messages is None else images.limit(messages, batch=self.settings.image_batch))
+        chars = images.size_chars(self.request() if messages is None else images.limit(messages, keep=self.settings.image_keep, batch=self.settings.image_batch))
         r_chars, r_tokens = self._replayed_reasoning() if messages is None else (0, 0)
         return int((chars - r_chars) / self.chars_per_token) + r_tokens + TOOLS_OVERHEAD_TOKENS
 
@@ -165,7 +165,7 @@ class ClmContext(ClmMirror):
         """Tokens these messages add to ``held()``, counted as ``held()`` counts them (raw characters let encrypted
         reasoning through at a fraction of its cost: Mercury segment checkpointed 31,043 to 30,918 tokens and ended)."""
         stripped = [{k: v for k, v in m.items() if k != "reasoning_content"} for m in messages]
-        total = int(images.size_chars(images.limit(stripped, batch=self.settings.image_batch)) / self.chars_per_token)
+        total = int(images.size_chars(images.limit(stripped, keep=self.settings.image_keep, batch=self.settings.image_batch)) / self.chars_per_token)
         if self.settings.replay_reasoning == "segment":
             ids = {id(m) for m in messages}
             replayed = self._replayed()

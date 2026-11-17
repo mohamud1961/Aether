@@ -50,7 +50,10 @@ def _parts(content: Any) -> Any:
     out = []
     for part in content:
         if part.get("type") == "image_url":
-            out.append({"type": "input_image", "image_url": part["image_url"]["url"]})
+            image = {"type": "input_image", "image_url": part["image_url"]["url"]}
+            if part["image_url"].get("detail"):
+                image["detail"] = part["image_url"]["detail"]
+            out.append(image)
         elif part.get("type") == "text":
             out.append({"type": "input_text", "text": part["text"]})
         else:
@@ -142,10 +145,15 @@ class ResponsesProvider(ChatProvider):
 
     def __init__(
         self, client: Any, *, cache_key: str | None = None, chain: bool = False,
-        native_compaction: int | None = None, tool_strict: bool | None = None, **kwargs: Any
+        native_compaction: int | None = None, tool_strict: bool | None = None, web_search: bool = False, **kwargs: Any
     ) -> None:
         super().__init__(client, **kwargs)
         self.tool_strict = tool_strict  # see tool_spec; None leaves the provider default
+        # AETHER_CORE_WEB_SEARCH=on (default off): the provider's hosted web_search tool beside Core's own, as Codex
+        # has it. G7 fin (17 Nov): Codex searched the regulation text 10-25 times in 5/5 runs, Core 0 in 5/5. The
+        # provider runs the search inside the turn; its call items are not replayed (store=false), only what the
+        # model wrote and its reasoning are.
+        self.hosted_tools = [{"type": "web_search"}] if web_search else []
         if native_compaction is not None and (chain or native_compaction < 1000):
             # the provider says never to prune a previous_response_id chain; Core prunes before the newest item
             raise ValueError("native compaction needs chain off and a threshold of at least 1000 tokens")
@@ -190,7 +198,7 @@ class ResponsesProvider(ChatProvider):
             params.pop("tool_choice", None)
             params.pop("parallel_tool_calls", None)
         else:
-            request["tools"] = [tool_spec(t, self.tool_strict) for t in tools]
+            request["tools"] = [tool_spec(t, self.tool_strict) for t in tools] + self.hosted_tools
         request["params"] = params
         return request
 
@@ -231,6 +239,8 @@ class ResponsesProvider(ChatProvider):
                             "name": item.get("name", ""),
                             "arguments": item.get("arguments", ""),
                         }
+                    elif item.get("type") == "web_search_call":
+                        turn.web_searches += 1
                     elif item.get("type") == "custom_tool_call":  # freeform tool: its text is the one argument
                         turn.streamed_calls[len(turn.streamed_calls)] = {
                             "id": item.get("call_id", ""),

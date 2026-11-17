@@ -290,16 +290,18 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
         # live: 27/27 compares did this and sent every image twice). Both are shown once, and the result says so.
         path, region = s.files.resolve(args["path"]), args.get("region") or None
         other, same = args.get("compare"), ""
+        full = getattr(s.config, "image_fidelity", "standard") == "original"
+        side, detail = (images.FULL_MAX_SIDE, images.FULL_DETAIL) if full else (images.MAX_SIDE, None)
         if other is not None:
             other_path, other_region = s.files.resolve(other["path"]), other.get("region") or None
             if (other_path, other_region) != (path, region):
-                desc, url, other_desc, other_url = await images.compare(s.env, path, region, other_path, other_region)
-                s.pending_images.append(images.comparison_message(desc, url, other_desc, other_url))
+                desc, url, other_desc, other_url = await images.compare(s.env, path, region, other_path, other_region, side)
+                s.pending_images.append(images.comparison_message(desc, url, other_desc, other_url, detail))
                 s.images_viewed += 2
                 return f"[images {desc} and {other_desc}; shown below]", False
             same = "; compare named the same image and region, so it is shown once"
-        desc, url = await images.load(s.env, path, region=region)
-        s.pending_images.append(images.message(desc, url))
+        desc, url = await images.load(s.env, path, region=region, max_side=side)
+        s.pending_images.append(images.message(desc, url, detail))
         s.images_viewed += 1
         return f"[image {desc}; shown below{same}]", False
     if name == "apply_patch":  # study arm CX (toolset codex)

@@ -388,6 +388,7 @@ async def _loop(s: _Session) -> None:
             content=turn.content,
             tool_calls=turn.tool_calls,
             response_id=turn.response_id or None,  # H1: joins this turn to its provider receipt and spend row
+            web_searches=turn.web_searches or None,
             effort=AFTER_CUT["reasoning_effort"] if cut and s.provider.takes_effort else (
                 s.config.image_effort if look else None),
         )
@@ -410,7 +411,7 @@ async def _loop(s: _Session) -> None:
         if not turn.tool_calls:
             # A turn the output limit cut off is work in progress, not idleness; the time limit bounds it (D1
             # regex-chess: three 32k-token thoughts in a row ended the run with 30 minutes left).
-            idle_turns += turn.finish_reason != "length"
+            idle_turns += turn.finish_reason != "length" and not turn.web_searches  # a search-only turn did work
             if idle_turns >= 3:
                 result.status = "no_tool_loop"
                 return

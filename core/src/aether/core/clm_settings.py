@@ -62,6 +62,8 @@ class ClmSettings:
     attest_original_history: bool = False
     # Images leave the request in groups of this many (images.limit); 1 = one at a time, the original behaviour.
     image_batch: int = 1
+    # Images kept in the request (images.limit); 2 = images.KEEP_IMAGES, images.FULL_KEEP under image fidelity "original".
+    image_keep: int = 2
 
     @property
     def limit(self) -> int:

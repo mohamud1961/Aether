@@ -37,6 +37,8 @@ CALLS_ENV, CALLS_MODES = "AETHER_CORE_CALLS", ("one", "many")
 REASONING_ENV = "AETHER_CORE_REASONING"
 NATIVE_COMPACTION_ENV = "AETHER_CORE_NATIVE_COMPACTION"  # optional token threshold (Responses only; E18 K1)
 CHAIN_ENV = "AETHER_CORE_CHAIN"  # optional on/off (Responses only): previous_response_id chaining, stored responses
+WEB_SEARCH_ENV = "AETHER_CORE_WEB_SEARCH"  # optional on/off (Responses only): the provider's hosted web_search tool
+IMAGE_FIDELITY_ENV, IMAGE_FIDELITY_MODES = "AETHER_CORE_IMAGE_FIDELITY", ("standard", "original")  # default off
 IMAGE_BATCH_ENV = "AETHER_CORE_IMAGE_BATCH"  # images leave the request in groups (images.limit); 4 = default (board IB)
 TOOL_STRICT_ENV = "AETHER_CORE_TOOL_STRICT"  # study arm SF: "off" sends strict=false on Responses tools
 MAX_OUTPUT_ENV = "AETHER_CORE_MAX_OUTPUT"  # optional; per-turn output ceiling in tokens (default 16384); see _max_output
@@ -124,6 +126,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         context=context,
         repl=repl == "on",
         images=see == "on",
+        image_fidelity=_choice(environ, IMAGE_FIDELITY_ENV, IMAGE_FIDELITY_MODES, "standard"),
         reviews=plan,
         clm=ClmSettings(
             replay_reasoning=_replay(environ, context),
@@ -135,6 +138,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
                 _choice(environ, CONTEXT_EVIDENCE_ENV, CONTEXT_EVIDENCE_MODES, "off") != "off"
             ),
             image_batch=int(_choice(environ, IMAGE_BATCH_ENV, ("1", "2", "3", "4", "6", "8"), "4")),
+            image_keep=8 if _choice(environ, IMAGE_FIDELITY_ENV, IMAGE_FIDELITY_MODES, "standard") == "original" else 2,
         ),
         parallel_reads=_parallel_reads(environ),
         terminal_events=_choice(environ, "AETHER_CORE_TERMINAL_EVENTS", REPL_MODES, "off") == "on",

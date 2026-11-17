@@ -62,6 +62,7 @@ class Turn:
     compaction_items: list[dict[str, Any]] = field(
         default_factory=list
     )  # Responses API native compaction (switch AETHER_CORE_NATIVE_COMPACTION): opaque, always replayed
+    web_searches: int = 0  # hosted web_search calls the provider ran inside this turn (AETHER_CORE_WEB_SEARCH)
 
     def response(self) -> dict[str, Any]:
         """What came back, as assembled from the stream (partial if the stream did not finish)."""
