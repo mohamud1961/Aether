@@ -64,7 +64,7 @@ from .harbor_config import (  # noqa: F401  (re-exported: launchers and tests im
     REMOVED_ENV,
     REPL_ENV,
     REPL_MODES,
-    WEB_SEARCH_ENV,
+    WEB_SEARCH_ENV, WEB_SEARCH_MAX_ENV,
     REQUEST_ENV,
     REQUEST_SHAPES,
     REVIEW_ENV,
@@ -137,7 +137,9 @@ def build_provider(
         strict = _choice(environ, TOOL_STRICT_ENV, ("default", "off"), "default")  # study arm SF
         return ResponsesProvider(client, model=model, params=params, log=log, chain=chain, native_compaction=native,
                                  tool_strict=False if strict == "off" else None,
-                                 web_search=_choice(environ, WEB_SEARCH_ENV, REPL_MODES, "off") == "on")
+                                 web_search=_choice(environ, WEB_SEARCH_ENV, REPL_MODES, "off") == "on",
+                                 web_search_max=int(environ[WEB_SEARCH_MAX_ENV])
+                                 if environ.get(WEB_SEARCH_MAX_ENV) else None)
     if _choice(environ, WEB_SEARCH_ENV, REPL_MODES, "off") == "on":
         raise ValueError(f"{WEB_SEARCH_ENV}=on needs the Responses request shape (a hosted provider tool)")
     if environ.get("AETHER_CORE_TOOLSET") == "codex":

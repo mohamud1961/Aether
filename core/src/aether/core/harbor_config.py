@@ -18,7 +18,7 @@ from .start_copy import START_COPY_ENV
 from .mcp import MCP_IDEMPOTENCY_ENV
 from .outside_witness import OUTSIDE_WITNESS_ENV
 from . import state_service
-from .image_region import IMAGE_COMPARE_ENV, IMAGE_REGION_ENV
+from .image_region import IMAGE_COMPARE_ENV, IMAGE_MULTI_ENV, IMAGE_REGION_ENV
 from .record import HOLD_ENV, HOLD_MODES, RECORD_ENV, RECORD_MODES
 from .tools import HYGIENE_MODES
 
@@ -38,6 +38,7 @@ REASONING_ENV = "AETHER_CORE_REASONING"
 NATIVE_COMPACTION_ENV = "AETHER_CORE_NATIVE_COMPACTION"  # optional token threshold (Responses only; E18 K1)
 CHAIN_ENV = "AETHER_CORE_CHAIN"  # optional on/off (Responses only): previous_response_id chaining, stored responses
 WEB_SEARCH_ENV = "AETHER_CORE_WEB_SEARCH"  # optional on/off (Responses only): the provider's hosted web_search tool
+WEB_SEARCH_MAX_ENV = "AETHER_CORE_WEB_SEARCH_MAX"  # optional positive int: searches per run before the tool is withdrawn
 IMAGE_FIDELITY_ENV, IMAGE_FIDELITY_MODES = "AETHER_CORE_IMAGE_FIDELITY", ("standard", "original")  # default off
 IMAGE_BATCH_ENV = "AETHER_CORE_IMAGE_BATCH"  # images leave the request in groups (images.limit); 4 = default (board IB)
 TOOL_STRICT_ENV = "AETHER_CORE_TOOL_STRICT"  # study arm SF: "off" sends strict=false on Responses tools
@@ -138,7 +139,9 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
                 _choice(environ, CONTEXT_EVIDENCE_ENV, CONTEXT_EVIDENCE_MODES, "off") != "off"
             ),
             image_batch=int(_choice(environ, IMAGE_BATCH_ENV, ("1", "2", "3", "4", "6", "8"), "4")),
-            image_keep=8 if _choice(environ, IMAGE_FIDELITY_ENV, IMAGE_FIDELITY_MODES, "standard") == "original" else 2,
+            image_keep=8 if (_choice(environ, IMAGE_FIDELITY_ENV, IMAGE_FIDELITY_MODES, "standard") == "original"
+                             or _choice(environ, IMAGE_MULTI_ENV, REPL_MODES, "off") == "on") else 2,
+            image_exempt=_choice(environ, "AETHER_CORE_IMAGE_EXEMPT", REPL_MODES, "off") == "on",
         ),
         parallel_reads=_parallel_reads(environ),
         terminal_events=_choice(environ, "AETHER_CORE_TERMINAL_EVENTS", REPL_MODES, "off") == "on",
@@ -189,6 +192,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         **state_service.settings(lambda name, modes, unset: _choice(environ, name, modes, unset), REPL_MODES, FACTS_MODES),
         image_region=_choice(environ, IMAGE_REGION_ENV, REPL_MODES, "off") == "on",
         image_compare=_choice(environ, IMAGE_COMPARE_ENV, REPL_MODES, "off") == "on",
+        image_multi=_choice(environ, IMAGE_MULTI_ENV, REPL_MODES, "off") == "on",
         toolset=_choice(environ, "AETHER_CORE_TOOLSET", ("full", "minimal", "python", "codex"), "full"),  # T0; B18; CX
         task_repeat=int(_choice(environ, "AETHER_CORE_TASK_REPEAT", ("1", "2", "3"), "1")),  # study arm R2
         image_effort=_choice(environ, "AETHER_CORE_IMAGE_EFFORT", ("", "low", "medium", "high", "xhigh"), ""))

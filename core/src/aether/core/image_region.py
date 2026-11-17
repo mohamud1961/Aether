@@ -13,6 +13,10 @@ from typing import Any
 
 IMAGE_REGION_ENV = "AETHER_CORE_IMAGE_REGION"
 IMAGE_COMPARE_ENV = "AETHER_CORE_IMAGE_COMPARE"
+# AETHER_CORE_IMAGE_MULTI=on: several images in one view_image call. G9 freecad passes (17 Nov) made 23-24 one-image
+# calls each, Codex about 8, often several crops per call; each extra call re-sends the whole request.
+IMAGE_MULTI_ENV = "AETHER_CORE_IMAGE_MULTI"
+MORE_PATHS_MAX = 7
 REGION = {
     "type": "array",
     "items": {"type": "integer"},
@@ -44,6 +48,18 @@ def with_compare(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "properties": comparison,
             "required": ["path"],
         }
+    return out
+
+
+def with_more(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = deepcopy(tools)
+    for tool in out:
+        if tool["function"]["name"] == "view_image":
+            tool["function"]["parameters"]["properties"]["more_paths"] = {
+                "type": "array", "items": {"type": "string"}, "maxItems": MORE_PATHS_MAX,
+                "description": f"Optional: up to {MORE_PATHS_MAX} more image files, shown after the first in the same "
+                "observation.",
+            }
     return out
 
 

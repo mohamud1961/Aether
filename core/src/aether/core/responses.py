@@ -145,7 +145,8 @@ class ResponsesProvider(ChatProvider):
 
     def __init__(
         self, client: Any, *, cache_key: str | None = None, chain: bool = False,
-        native_compaction: int | None = None, tool_strict: bool | None = None, web_search: bool = False, **kwargs: Any
+        native_compaction: int | None = None, tool_strict: bool | None = None, web_search: bool = False,
+        web_search_max: int | None = None, **kwargs: Any
     ) -> None:
         super().__init__(client, **kwargs)
         self.tool_strict = tool_strict  # see tool_spec; None leaves the provider default
@@ -154,6 +155,11 @@ class ResponsesProvider(ChatProvider):
         # provider runs the search inside the turn; its call items are not replayed (store=false), only what the
         # model wrote and its reasoning are.
         self.hosted_tools = [{"type": "web_search"}] if web_search else []
+        # AETHER_CORE_WEB_SEARCH_MAX (default unset = no limit): stop offering the tool once this many searches ran in
+        # the run. One turn may still overshoot it (G10c ran up to 18 in a turn); the spend guard bounds each call.
+        if web_search_max is not None and web_search_max < 1:
+            raise ValueError("web_search_max must be at least 1")
+        self.web_search_max, self.web_searches = web_search_max, 0
         if native_compaction is not None and (chain or native_compaction < 1000):
             # the provider says never to prune a previous_response_id chain; Core prunes before the newest item
             raise ValueError("native compaction needs chain off and a threshold of at least 1000 tokens")
@@ -198,7 +204,8 @@ class ResponsesProvider(ChatProvider):
             params.pop("tool_choice", None)
             params.pop("parallel_tool_calls", None)
         else:
-            request["tools"] = [tool_spec(t, self.tool_strict) for t in tools] + self.hosted_tools
+            spent = self.web_search_max is not None and self.web_searches >= self.web_search_max
+            request["tools"] = [tool_spec(t, self.tool_strict) for t in tools] + ([] if spent else self.hosted_tools)
         request["params"] = params
         return request
 
@@ -241,6 +248,7 @@ class ResponsesProvider(ChatProvider):
                         }
                     elif item.get("type") == "web_search_call":
                         turn.web_searches += 1
+                        self.web_searches += 1
                     elif item.get("type") == "custom_tool_call":  # freeform tool: its text is the one argument
                         turn.streamed_calls[len(turn.streamed_calls)] = {
                             "id": item.get("call_id", ""),

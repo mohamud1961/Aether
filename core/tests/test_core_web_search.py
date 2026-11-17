@@ -71,3 +71,21 @@ def test_a_search_turn_does_not_recalibrate_the_token_estimate():
     calibrate(ctx, 40_000, Turn(usage={"input": 12_000}))
     assert ctx.calls == [(40_000, 12_000)]
     calibrate(None, 40_000, Turn(usage={"input": 12_000}))  # no managed context: nothing to correct
+
+
+def test_the_tool_is_withdrawn_once_the_run_reaches_its_search_limit(tmp_path):
+    """AETHER_CORE_WEB_SEARCH_MAX: G10c ran 350 searches in one row. Known-bad: an unlimited provider keeps offering
+    the tool after the same two searches; a limit below 1 is refused."""
+    import pytest
+
+    rows = [event("response.output_item.done", item=done_item(type="web_search_call", id="ws_1", status="completed")),
+            event("response.output_item.done", item=done_item(type="web_search_call", id="ws_2", status="completed")),
+            event("response.completed", response=SimpleNamespace(id="r", model="m", status="completed", usage=None))]
+    for limit, offered in ((2, False), (3, True), (None, True)):
+        p = provider(tmp_path, list(rows), web_search=True, web_search_max=limit)
+        assert {"type": "web_search"} in p._request([], [TOOL], 20, None)["tools"]
+        asyncio.run(p._stream_once(p._request([], [TOOL], 20, None), Turn()))
+        assert p.web_searches == 2
+        assert ({"type": "web_search"} in p._request([], [TOOL], 20, None)["tools"]) is offered
+    with pytest.raises(ValueError):
+        provider(tmp_path, web_search=True, web_search_max=0)

@@ -182,9 +182,15 @@ class ClmContext(ClmMirror):
         model's live working memory, sent once and dropped after its next turn; the model cannot condense it and a
         checkpoint never sees it. Counting it let a single long thought trigger a checkpoint that discarded it (D1
         circuit-fibsqrt: three 32k-token thoughts each summarised away, about 1100 s of reasoning redone)."""
+        exempt = self._image_tokens() if self.settings.image_exempt else 0
         if self.settings.replay_reasoning == "segment":
-            return self.tokens() - self._newest_reasoning_tokens()
-        return self.tokens() - self._replayed_reasoning()[1]
+            return self.tokens() - self._newest_reasoning_tokens() - exempt
+        return self.tokens() - self._replayed_reasoning()[1] - exempt
+
+    def _image_tokens(self) -> int:
+        n = sum(1 for m in self.request() if isinstance(m.get("content"), list)
+                for p in m["content"] if images._is_image_part(p))
+        return int(n * images.IMAGE_CHARS / self.chars_per_token)
 
     def _newest_reasoning_tokens(self) -> int:
         """Tokens of the newest assistant turn's replayed reasoning (``segment`` leaves only this out of the budget)."""

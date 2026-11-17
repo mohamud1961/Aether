@@ -8,7 +8,7 @@ import json
 import time
 from typing import Any
 
-from . import facts, finish_report, images
+from . import facts, finish_report, image_region, images
 from .context import SAVE_OVER, SAVED_NOTE, saved_path
 from .env import get_bytes, put_bytes, run
 from .provider import parse_arguments
@@ -300,9 +300,19 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
                 s.images_viewed += 2
                 return f"[images {desc} and {other_desc}; shown below]", False
             same = "; compare named the same image and region, so it is shown once"
-        desc, url = await images.load(s.env, path, region=region, max_side=side)
-        s.pending_images.append(images.message(desc, url, detail))
-        s.images_viewed += 1
+        # The request keeps at most image_keep images; more in one call would be dropped before the model sees them.
+        room = min(image_region.MORE_PATHS_MAX, (s.clm.settings.image_keep if s.clm else images.KEEP_IMAGES) - 1)
+        asked = list(args.get("more_paths") or [])
+        more = [s.files.resolve(p) for p in asked[:room]]
+        left = f"; {len(asked) - len(more)} more not shown (at most {room + 1} images per view)" if len(asked) > room else ""
+        shown = [await images.load(s.env, path, region=region, max_side=side)]
+        shown += [await images.load(s.env, p, max_side=side) for p in more]  # all load before any is shown
+        for desc, url in shown:
+            s.pending_images.append(images.message(desc, url, detail))
+        s.images_viewed += len(shown)
+        if more:
+            return f"[{len(shown)} images: {'; '.join(d for d, _ in shown)}; shown below{left}]", False
+        desc = shown[0][0]
         return f"[image {desc}; shown below{same}]", False
     if name == "apply_patch":  # study arm CX (toolset codex)
         from . import apply_patch

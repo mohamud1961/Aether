@@ -65,6 +65,7 @@ class CoreConfig:
     browser_session: bool = False  # one browser kept open across browser calls (browser_session_src; AETHER_CORE_BROWSER=session)
     image_region: bool = False  # view_image may show part of an image at full resolution (image_region)
     image_compare: bool = False  # view two independently selected images in the same observation
+    image_multi: bool = False  # view_image may name several files at once (AETHER_CORE_IMAGE_MULTI)
     # Reasoning effort for the request that first sees a newly attached image ("" = the run's own). 28 Oct: an
     # image-reading task went 0/3 at high and 2/3 valid at xhigh run-wide; this spends the extra effort only there.
     image_effort: str = ""

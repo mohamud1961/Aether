@@ -54,6 +54,8 @@ def assemble(s: Any, config: Any, python: str) -> bool:
         s.tools = image_region.with_region(s.tools)
     if config.image_compare and see:
         s.tools = image_region.with_compare(s.tools)
+    if config.image_multi and see:
+        s.tools = image_region.with_more(s.tools)
     if config.intent:
         s.tools = intent.with_intent(s.tools)
     if config.open_issues:

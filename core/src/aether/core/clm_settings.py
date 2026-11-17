@@ -64,6 +64,9 @@ class ClmSettings:
     image_batch: int = 1
     # Images kept in the request (images.limit); 2 = images.KEEP_IMAGES, images.FULL_KEEP under image fidelity "original".
     image_keep: int = 2
+    # AETHER_CORE_IMAGE_EXEMPT=on: images kept in the request (at most image_keep) do not count toward the editable
+    # limit. G9 freecad passes checkpointed mid-reading on images, lost them and re-viewed 7-9 (17 Nov).
+    image_exempt: bool = False
 
     @property
     def limit(self) -> int:
