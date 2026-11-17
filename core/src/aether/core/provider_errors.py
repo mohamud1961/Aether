@@ -80,8 +80,11 @@ def _in_band_transient(text: str) -> bool:
     """A server fault the provider reported inside a 200 stream (no status code). Mission ho5 (2026-10-28):
     "The server is overloaded or not ready yet. Please try again later." ended a run at once as provider_error."""
     lowered = text.lower()
+    # G14 (2026-11-17): the gateway's proxy reset the upstream connection mid-request ("upstream connect error or
+    # disconnect/reset before headers. reset reason: connection termination"); nothing was produced, the row died.
     return any(k in lowered for k in ("overloaded", "not ready yet", "try again later", "server_error",
-                                      "service unavailable", "internal server error"))
+                                      "service unavailable", "internal server error", "upstream connect error",
+                                      "reset before headers", "connection termination"))
 
 
 def _retry_after_text(text: str) -> float | None:

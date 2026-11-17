@@ -277,3 +277,22 @@ def test_provider_retries_a_server_fault_reported_inside_the_stream_a_bounded_nu
     p = ChatProvider(ScriptedClient([busy] * 20), model="m", params={}, sleep=sleep)
     with pytest.raises(ProviderError):
         asyncio.run(p.complete([], [], max_tokens=10, remaining_s=lambda: 5000))
+
+
+def test_provider_retries_a_gateway_connection_reset_reported_inside_the_stream():
+    # G14 biped CL (2026-11-17): one in-stream proxy reset ended a 26-call row (known-bad: no retry, status None).
+    class APIError(Exception):
+        pass
+
+    waits = []
+
+    async def sleep(s):
+        waits.append(s)
+
+    reset = APIError("upstream connect error or disconnect/reset before headers. reset reason: connection termination")
+    p = ChatProvider(ScriptedClient([reset, call("finish", {"summary": "x"})]), model="m", params={}, sleep=sleep)
+    turn = asyncio.run(p.complete([], [], max_tokens=10, remaining_s=lambda: 5000))
+    assert turn.attempts == 2 and len(waits) == 1
+    p = ChatProvider(ScriptedClient([reset] * 20), model="m", params={}, sleep=sleep)
+    with pytest.raises(ProviderError):  # still bounded
+        asyncio.run(p.complete([], [], max_tokens=10, remaining_s=lambda: 5000))
