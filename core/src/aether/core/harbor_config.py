@@ -134,6 +134,7 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
             **_budget(environ),
             **_clm_profile(environ),
             reminder_room_tokens=_reminder_room(environ),
+            window_cut_margin_tokens=_int_env(environ, "AETHER_CORE_WINDOW_CUT_MARGIN", 0),
             notes_voice=_choice(environ, NOTES_ENV, NOTES_VOICES, "legacy"),
             attest_original_history=(
                 _choice(environ, CONTEXT_EVIDENCE_ENV, CONTEXT_EVIDENCE_MODES, "off") != "off"
@@ -316,4 +317,13 @@ def _window(environ: Mapping[str, str]) -> int | None:
         return None
     if not raw.isdigit():
         raise ConfigError(f"AETHER_CORE_CONTEXT_WINDOW must be a token count, got {raw!r}")
+    return int(raw)
+
+
+def _int_env(environ: Mapping[str, str], name: str, default: int) -> int:
+    raw = environ.get(name, "").strip()
+    if not raw:
+        return default
+    if not raw.isdigit():
+        raise ConfigError(f"{name} must be a non-negative integer, got {raw!r}")
     return int(raw)

@@ -64,11 +64,15 @@ async def _cut_window(s: _Session) -> bool:
         removed += 1
         return True
 
-    while clm.over_limit():
-        if not discard_oldest():
+    target = clm.settings.limit - clm.settings.window_cut_margin_tokens
+    while clm.held() > target:
+        if discard_oldest():
+            continue
+        if clm.over_limit():
             s.result.status, s.result.error = "context_error", "newest complete turn exceeds the context limit"
             s.trace("context_window_cut", ok=False, removed_turns=removed, error=s.result.error)
             return False
+        break  # the margin is a target: nothing older is left, and the context is within its limit
     _attach(clm.editable, "[context window] Older turns were removed without a summary." + history)
     while clm.over_limit():
         if not discard_oldest():

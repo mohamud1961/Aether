@@ -26,6 +26,9 @@ class ClmSettings:
     nudge_ratios: tuple[float, ...] = (0.5, 0.75)
     max_rollbacks: int = 0
     rollback_margin_tokens: int = 0  # after a rollback, keep rolling back until this many tokens are free (meta: 2048)
+    # checkpoint_policy "window": a cut removes oldest turns until this many tokens are free (0: just under the limit).
+    # 17 Nov: with 0, a context at its limit is cut again on almost every turn, and each cut moves the cached prefix.
+    window_cut_margin_tokens: int = 0
     # AETHER_CORE_CLM_NUDGES=late (the Harbor default since 17 Nov): the paper's runs (arXiv 2609.37725, App. E) give one editing reminder 2,048 tokens
     # before the budget instead of ratio and urgent nudges. 0 = Core's nudges. Re-armed once the room grows again.
     reminder_room_tokens: int = 0
