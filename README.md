@@ -73,13 +73,17 @@ trials from 13 frontier models across OpenAI, Anthropic, Google, xAI, Meta and Z
 - **More reasoning does not fix it.** The #1 agent at the time failed the same assumption tasks at every effort.
 - **The harness moves it, it does not remove it.** Changing the harness around the same model changed which
   assumption was made, never whether one was.
-- **Outside evidence works; the agent rarely finds its own.** When the deciding fact came from a source independent of
-  the agent's assumption, it changed the outcome. On one study task across 13 frontier models, runs that used the
-  file's own values passed 86% of the time, against 18% for runs that used the task's illustrative example. Passing
-  runs of a stronger model checked their work against independent sources (a standard definition, manufactured
-  ground truth, an external measurement), while failing runs checked against tests derived from their own theory. In
-  Aether's replays, agents acted on every outside fact put in front of them. The open problem is new work, where no
-  one can hand the agent that fact: the agent has to create an independent check for itself.
+- **Outside evidence works; the agent rarely finds its own.** This is the central finding of Aether's source audit of
+  Core's failures. The deciding fact was almost always reachable in the environment, and the tools to find it were
+  there. The agent failed in one of two ways. Most often it never made the deciding check, frequently after naming
+  it ("run Tesseract", "Chromium could be a good idea") and moving on. Otherwise it made the check, and when its own
+  output contradicted its belief, the belief won. Yet when the same fact was stated to the agent from outside its
+  own reasoning, it acted on it every time. The gap is not the world and not ability: it is an observation made
+  outside the agent's frame, carrying authority the agent does not give its own. Public data shows the same: on one
+  study task across 13 frontier models, runs that used the file's own values passed 86% of the time, against 18% for
+  runs that used the task's illustrative example, and passing runs checked their work against independent sources
+  while failing runs checked against tests derived from their own theory. The open problem is new work, where no
+  one can hand the agent that fact: the agent has to create an independent check for itself, and believe it.
 - **It ends in a confident "done".** 797 of 853 failures in Aether's largest pool ended with the agent reporting
   success, and failed runs took 58% of the spend.
 

@@ -133,15 +133,31 @@ in for the real one.
 
 ## Outside evidence, and the case where there is none
 
-- When the deciding fact reaches the agent from a source independent of its assumption, it acts on it. On
-  extract-elf across 13 frontier models, runs keyed to the file's own addresses passed 43 of 50 (86%); runs keyed to
-  the illustrative example passed 13 of 73 (18%).
-- In Aether's replays of wrong finishes, the agent acted on every outside fact it was shown (10 of 10 continuations)
-  and fixed each stated defect; restating the file's own claim next to the task's sentence corrected a column swap in
-  8 of 8 replays against 1 of 8 without. These are small replays scored by proxy, and the deciding fact had to be
-  supplied from outside.
-- That is the limit: on new work there is no outside source to supply it. The research target is an agent that
-  creates an independent check for itself, drawn from a different source than its own hypothesis.
+**The source audit (Core traces).** For each audited failure, Aether asked where the deciding fact was and why the
+agent did not use it. The fact was in the environment in all but one case, and the instruments to observe it were
+available every time. The failures split into two mechanisms:
+
+1. **Never acquired (the majority).** Which observations the agent makes is driven by its first reading of the
+   task. It often names the deciding check ("run Tesseract", "Chromium could be a good idea", "SSH isn't installed
+   yet") and skips it.
+2. **Acquired and overridden (the rest).** The agent ran the check, its own output contradicted its belief, and the
+   belief won: OCR output overruled on a G-code task, the file's own addresses passed over on extract-elf, similar
+   cases on mips and pov-ray.
+
+In contrast, facts stated to the agent by the harness were acted on in every continuation tested, and each stated
+defect was fixed. Same-model levers (self-check prompts, a same-model verifier, doubt echoes) did not change either
+mechanism. The conclusion: the world is rarely the missing piece. What is missing is an observation made outside
+the agent's frame, delivered with authority the agent does not give its own.
+
+**Public data agrees.**
+- On extract-elf across 13 frontier models, runs keyed to the file's own addresses passed 43 of 50 (86%); runs keyed
+  to the illustrative example passed 13 of 73 (18%).
+- Restating the file's own claim next to the task's sentence corrected a column swap in 8 of 8 replays against 1 of
+  8 without. These are small replays scored by proxy, and the deciding fact had to be supplied from outside.
+
+**The limit.** On new work there is no outside source to supply the fact. The research target is an agent that
+creates an independent check for itself, chosen without reference to its own hypothesis, and gives the result the
+authority it currently gives only to outside facts.
 
 ## What has been tried and failed
 
