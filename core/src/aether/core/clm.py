@@ -78,6 +78,7 @@ class ClmContext(ClmMirror):
     _turn: int = 0
     _last_urgent: int = -URGENT_EVERY_TURNS
     _reminder_armed: bool = True
+    _aged: dict[int, dict[str, Any]] = field(default_factory=dict)  # image_age_at_cut: id -> message hidden at a cut
     # Retained across a copied/resumed context; never inferred from user text.
     _managed_facts_pin_index: int | None = field(default=None, init=False, repr=False)
     # id(message) -> (message, provider reasoning tokens); None means provider usage was not reported
@@ -130,11 +131,35 @@ class ClmContext(ClmMirror):
             out.append({"role": "assistant", "compaction": self._native_compaction})
         for msg in self.editable:
             include_reasoning = id(msg) in keep
+            if self._aged.get(id(msg)) is msg:
+                msg = images.hidden(msg)
             if "compaction" in msg or ("reasoning_content" in msg and not include_reasoning):
                 msg = {k: v for k, v in msg.items()
                        if k != "compaction" and (k != "reasoning_content" or include_reasoning)}
             out.append(msg)
-        return images.limit(out, keep=self.settings.image_keep, batch=self.settings.image_batch)
+        return self._limit_images(out)
+
+    def _limit_images(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if getattr(self.settings, "image_age_at_cut", False):  # aged only by age_images(), at a cut
+            return messages
+        return images.limit(messages, keep=self.settings.image_keep, batch=self.settings.image_batch)
+
+    def age_images(self) -> int:
+        """image_age_at_cut: at a cut, hide all but the newest image_keep images in the editable context.
+        Returns how many messages are newly hidden. Message objects are held so a reused id() never matches."""
+        aged, seen, added = {}, 0, 0
+        for msg in reversed(self.editable):
+            n = images.count(msg)
+            if not n:
+                continue
+            if self._aged.get(id(msg)) is msg or seen + n > self.settings.image_keep:
+                added += self._aged.get(id(msg)) is not msg
+                aged[id(msg)] = msg
+                seen = self.settings.image_keep
+            else:
+                seen += n
+        self._aged = aged
+        return added
 
     def _last_model_turn(self) -> dict[str, Any] | None:
         # Core publishes versioned facts in an assistant carrier after tool results.
@@ -157,7 +182,7 @@ class ClmContext(ClmMirror):
         return [last] if last is not None and last.get("reasoning_content") else []
 
     def tokens(self, messages: list[dict[str, Any]] | None = None) -> int:
-        chars = images.size_chars(self.request() if messages is None else images.limit(messages, keep=self.settings.image_keep, batch=self.settings.image_batch))
+        chars = images.size_chars(self.request() if messages is None else self._limit_images(messages))
         r_chars, r_tokens = self._replayed_reasoning() if messages is None else (0, 0)
         return int((chars - r_chars) / self.chars_per_token) + r_tokens + TOOLS_OVERHEAD_TOKENS
 
@@ -165,7 +190,7 @@ class ClmContext(ClmMirror):
         """Tokens these messages add to ``held()``, counted as ``held()`` counts them (raw characters let encrypted
         reasoning through at a fraction of its cost: Mercury segment checkpointed 31,043 to 30,918 tokens and ended)."""
         stripped = [{k: v for k, v in m.items() if k != "reasoning_content"} for m in messages]
-        total = int(images.size_chars(images.limit(stripped, keep=self.settings.image_keep, batch=self.settings.image_batch)) / self.chars_per_token)
+        total = int(images.size_chars(self._limit_images(stripped)) / self.chars_per_token)
         if self.settings.replay_reasoning == "segment":
             ids = {id(m) for m in messages}
             replayed = self._replayed()
@@ -283,6 +308,8 @@ class ClmContext(ClmMirror):
             f" The whole request is about {used + outside} tokens: {outside} of them are your earlier reasoning, "
             "sent back as well but outside this budget."
         ) if outside else ""
+        if not getattr(self.settings, "nudges", True):
+            return ""
         late = getattr(self.settings, "reminder_room_tokens", 0)
         if late:  # one reminder near the limit; nothing earlier (16 Nov: 0/183 edits after a sub-75% nudge)
             if room > late:
@@ -382,6 +409,8 @@ class ClmContext(ClmMirror):
         before = self.tokens()
         self.editable = candidate
         self.stats.edits_accepted += 1
+        if getattr(self.settings, "image_age_at_cut", False):  # an accepted edit already moves the cached prefix
+            self.age_images()
         self._rearm()
         return (
             True,

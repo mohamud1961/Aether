@@ -215,15 +215,26 @@ def limit(
             n_images = sum(_is_image_part(part) for part in content)
             if n_images and seen + n_images > keep:
                 seen = keep
-                msg = deepcopy(msg)
-                replacement = "[image no longer shown; call view_image again to see it]"
-                if isinstance(msg.get(HISTORY_FIELD), int):
-                    replacement = archive_note(msg[HISTORY_FIELD])
-                msg["content"] = text_of(content).replace("[image]", replacement)
+                msg = hidden(msg)
             elif n_images:
                 seen += n_images
         out.append(msg)
     return list(reversed(out))
+
+
+def hidden(msg: dict[str, Any]) -> dict[str, Any]:
+    """A copy of ``msg`` with its images replaced by a note that says how to see them again."""
+    msg = deepcopy(msg)
+    replacement = "[image no longer shown; call view_image again to see it]"
+    if isinstance(msg.get(HISTORY_FIELD), int):
+        replacement = archive_note(msg[HISTORY_FIELD])
+    msg["content"] = text_of(msg["content"]).replace("[image]", replacement)
+    return msg
+
+
+def count(msg: dict[str, Any]) -> int:
+    content = msg.get("content")
+    return sum(_is_image_part(p) for p in content) if isinstance(content, list) else 0
 
 
 def size_chars(messages: list[dict[str, Any]]) -> int:

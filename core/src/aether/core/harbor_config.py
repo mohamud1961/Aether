@@ -143,6 +143,8 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
             image_keep=8 if (_choice(environ, IMAGE_FIDELITY_ENV, IMAGE_FIDELITY_MODES, "standard") == "original"
                              or _choice(environ, IMAGE_MULTI_ENV, REPL_MODES, "off") == "on") else 2,
             image_exempt=_choice(environ, "AETHER_CORE_IMAGE_EXEMPT", REPL_MODES, "off") == "on",
+            image_age_at_cut=_choice(environ, "AETHER_CORE_IMAGE_AGING", ("batch", "cut"), "batch") == "cut",
+            nudges=_choice(environ, "AETHER_CORE_CLM_NUDGES", ("core", "late", "off"), "late") != "off",
         ),
         parallel_reads=_parallel_reads(environ),
         terminal_events=_choice(environ, "AETHER_CORE_TERMINAL_EVENTS", REPL_MODES, "off") == "on",
@@ -273,7 +275,7 @@ def _reminder_room(environ: Mapping[str, str]) -> int:
     """AETHER_CORE_CLM_NUDGES: "late" (default since 17 Nov, boards PL/PL2) gives one reminder 2,048 tokens before the
     editable limit; "core" restores the 50/75% and urgent nudges. The meta profile keeps its own nudges by default."""
     meta = environ.get("AETHER_CORE_CLM_PROFILE", "").strip() == "meta"
-    return 2_048 if _choice(environ, "AETHER_CORE_CLM_NUDGES", ("core", "late"), "core" if meta else "late") == "late" else 0
+    return 2_048 if _choice(environ, "AETHER_CORE_CLM_NUDGES", ("core", "late", "off"), "core" if meta else "late") == "late" else 0
 
 
 def _clm_profile(environ: Mapping[str, str]) -> dict:

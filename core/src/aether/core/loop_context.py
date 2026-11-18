@@ -52,6 +52,8 @@ async def _cut_window(s: _Session) -> bool:
     before = clm.tokens()
     history = await _keep_history(s)
     removed = 0
+    if getattr(clm.settings, "image_age_at_cut", False):
+        s.trace("context_images_aged", cause="window_cut", hidden=clm.age_images())
 
     def discard_oldest() -> bool:
         nonlocal removed
@@ -162,6 +164,8 @@ async def _fit_context(s: _Session) -> bool:
         clm.replace_with_checkpoint(
             summary, compaction.note(clm.settings.notes_voice) + await _keep_history(s), keep
         )
+        if getattr(clm.settings, "image_age_at_cut", False):
+            s.trace("context_images_aged", cause="checkpoint", hidden=clm.age_images())
         if s.state:  # the checkpoint summary is the model's; the run state is shown again whole
             s.state.dirty = True
         # Still over: drop the oldest kept turn (with its tool results) until it fits or only the newest turn is left.

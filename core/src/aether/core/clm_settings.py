@@ -70,6 +70,14 @@ class ClmSettings:
     # AETHER_CORE_IMAGE_EXEMPT=on: images kept in the request (at most image_keep) do not count toward the editable
     # limit. G9 freecad passes checkpointed mid-reading on images, lost them and re-viewed 7-9 (17 Nov).
     image_exempt: bool = False
+    # AETHER_CORE_IMAGE_AGING=cut (CL2, 17 Nov): images leave the request only when the context is cut (window cut,
+    # checkpoint, accepted edit), keeping the newest image_keep. Between cuts the request only grows, so its cached
+    # prefix holds: G14d layout CL re-billed 73-106K tokens uncached 7 times, each after an image left mid-history.
+    image_age_at_cut: bool = False
+    # AETHER_CORE_CLM_NUDGES=off (CL2): no context nudges or reminders; the window cut keeps the context in budget and
+    # the model still edits its context whenever it chooses. G14d biped CL: 3 late reminders, each followed by a deep
+    # self-edit and about 10 calls re-reading what was dropped.
+    nudges: bool = True
 
     @property
     def limit(self) -> int:
