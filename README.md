@@ -22,23 +22,25 @@ multiplier: the same model, at the same price, delivering more work that is actu
 ## The evidence: every frontier lab, every major benchmark
 
 **Terminal-Bench 4.1, the current top 10.** 3,300 graded trials from the best agents of OpenAI, Anthropic, Google
-and GitHub, about $39,800 of compute. More than a third of the trials fail, and retrying does not fix it: given five
-tries, every one of the top 10 still fails 17-29% of the tasks.
+and GitHub, about $39,800 of compute. 1,201 trials failed, and **97% of those failures (1,169) were not timeouts or
+crashes: the agent finished and handed in work that was wrong.** Only 32 ended in an error. Retrying does not fix
+it: given five tries, every one of the top 10 still fails 17-29% of the tasks. By share of agent time, roughly
+$11,600 of the spend went on runs that delivered wrong work.
 
-| Rank | Model (agent) | Pass, one try | Pass, best of five | Spend |
-|---|---|---|---|---|
-| 1 | Copilot Fusion (GitHub Copilot) | 71% | 83% | $2.0k |
-| 2 | Claude Opus 5.5 (Claude Code) | 66% | 80% | $4.7k |
-| 2 | Claude Fable 5.2 (Claude Code) | 66% | 79% | $16.5k |
-| 4 | Gemini 4 Carbon (Antigravity CLI) | 65% | 79% | $1.4k |
-| 5 | Claude Sonnet 5.5 (Claude Code) | 64% | 80% | $7.3k |
-| 6 | GPT-6.2 Astra (Codex) | 62% | 73% | $1.4k |
-| 7 | GPT-6.2 Sol (Codex) | 62% | 73% | $0.3k |
-| 8 | GPT-6.1 Sol (Codex) | 61% | 74% | $0.6k |
-| 9 | GPT-6 Astra, max (Codex) | 60% | 73% | $3.3k |
-| 10 | GPT-6 Astra, high (Codex) | 60% | 71% | $2.3k |
+| Rank | Model (agent) | Pass, one try | Pass, best of five | Failures that finished wrong | Spend |
+|---|---|---|---|---|---|
+| 1 | Copilot Fusion (GitHub Copilot) | 71% | 83% | 98% | $2.0k |
+| 2 | Claude Opus 5.5 (Claude Code) | 66% | 80% | 95% | $4.7k |
+| 2 | Claude Fable 5.2 (Claude Code) | 66% | 79% | 94% | $16.5k |
+| 4 | Gemini 4 Carbon (Antigravity CLI) | 65% | 79% | 92% | $1.4k |
+| 5 | Claude Sonnet 5.5 (Claude Code) | 64% | 80% | 97% | $7.3k |
+| 6 | GPT-6.2 Astra (Codex) | 62% | 73% | 100% | $1.4k |
+| 7 | GPT-6.2 Sol (Codex) | 62% | 73% | 100% | $0.3k |
+| 8 | GPT-6.1 Sol (Codex) | 61% | 74% | 98% | $0.6k |
+| 9 | GPT-6 Astra, max (Codex) | 60% | 73% | 100% | $3.3k |
+| 10 | GPT-6 Astra, high (Codex) | 60% | 71% | 99% | $2.3k |
 
-Source: the official [Terminal-Bench 4.1 leaderboard](https://tbench.ai), read on 18 Nov 2026.
+Source: the official [Terminal-Bench 4.1 leaderboard](https://tbench.ai) and its public per-trial results on Harbor Hub, read on 18 Nov 2026. "Finished wrong" means the trial ended without a timeout or error and failed the hidden tests.
 
 **Other major benchmarks show the same failure: confident, wrong, and hard to catch.**
 

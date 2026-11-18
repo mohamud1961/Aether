@@ -24,9 +24,12 @@ The common shape: **the check that should settle the assumption is derived from 
 
 ### Across the field
 
-- **Terminal-Bench 4.1, top 10 agents** (official leaderboard, 18 Nov 2026): 3,300 graded trials, about $39,800 of
-  compute, 1,201 failures (36%). Best-of-five pass rates (71-83%) stay well below 100%, so the failures repeat rather
-  than being bad luck. Per-agent table in the [README](../README.md).
+- **Terminal-Bench 4.1, top 10 agents** (official leaderboard and per-trial Harbor Hub results, 18 Nov 2026): 3,300
+  graded trials, about $39,800 of compute, 1,201 failures (36%). 1,169 of the failures (97%) ended normally with
+  wrong work handed in; 32 ended in an error (14 output-token limits, 6 agent timeouts, 5 non-zero exits, 4
+  verifier timeouts, 2 safety refusals, 1 missing reward). Per agent, 92-100% of failures finished wrong.
+  Best-of-five pass rates (71-83%) stay well below 100%. Estimated by agent-time share, about $11,600 (29%) of the
+  spend went on failed runs. Per-agent table in the [README](../README.md).
 - **OverclaimBench** ([arXiv 2609.20812](https://arxiv.org/abs/2609.20812)): 12 frontier models asked to review
   files. They skipped files in 67.9% of runs; in 80.4% of those runs the report was misleading (misleading rate 59%
   to 96% by model).
