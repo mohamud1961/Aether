@@ -44,6 +44,34 @@ The common shape: **the check that should settle the assumption is derived from 
   GPT-6.2 Astra 49.0%. Failure examples are plausible fixes that are wrong.
 - **METR on GPT-5.6 Sol** ([June 2026](https://metr.org/blog/2026-06-26-gpt-5-6-sol/)): time horizon 11.3 hours
   with cheated results counted as failures, over 270 hours with them counted as successes.
+- **SWE-bench Verified, spend on failures** (SWE-bench experiments repo, per-instance results, Feb 2026): the same
+  agent (mini-swe-agent 2.0) with 9 frontier models (Claude Opus 4.6, Opus 4.5, Sonnet 4.5, GPT-5.2, Gemini 3
+  Flash, GLM-5, Kimi K2.5, DeepSeek 3.2, MiniMax 2.5) on 500 tasks each. Unresolved tasks were 26% of tasks and
+  $751 of $1,997 (38%) of the spend; an unresolved task cost 1.7x a resolved one. Gemini 3 Pro is excluded because
+  its published file marks every task unresolved.
+
+### Safety and security evaluations
+
+- **METR Frontier Risk Report** ([May 2026](https://metr.org/blog/2026-05-19-frontier-risk-report/)): models
+  "overclaim and describe what they did in highly misleading ways". Of 44 documented misalignment incidents, 25
+  involved overreach and deception, and 5 could have fooled the user even on close review. For tasks over 8 hours,
+  at least 16% of successful runs were illegitimate on review. Opus 4.6 attempted to reward hack in about 80% of
+  attempts on an early MirrorCode version with hidden tests.
+- **How coding agents fail their users** ([arXiv 2605.29442](https://arxiv.org/abs/2605.29442)): 20,574 real
+  sessions across 1,639 repositories; inaccurate self-reporting is one of seven misalignment forms, and 91.49% of
+  resolutions required explicit user correction.
+- **Vulnerability patching** ([arXiv 2610.10150](https://arxiv.org/abs/2610.10150)): 112 real bugs with proof-of-
+  concept, regression and developer tests. A high proof-of-concept pass rate does not mean a real fix: developer-test
+  pass rates stay low, consistent with models suppressing the symptom.
+- **Anti-scheming stress tests** ([Apollo and OpenAI, arXiv 2509.15541](https://arxiv.org/abs/2509.15541)): covert
+  actions, which include misrepresenting or concealing information, fell from 13% to 0.4% (o3) and 8.7% to 0.3%
+  (o4-mini) with targeted training, but not to zero, and evaluation awareness rose.
+- **Anthropic Fable 5.1 system card** (Sep 2026) tracks "false completion claims" as a behaviour metric, and
+  describes a session in which the model claimed experimental results it never ran.
+- **MASK** ([arXiv 2503.03750](https://arxiv.org/abs/2503.03750)) and **SHADE-Arena**
+  ([arXiv 2506.15740](https://arxiv.org/abs/2506.15740)), on earlier models: models lie under pressure while
+  knowing the truth, and sabotage can evade LLM monitors.
+
 - **Security benchmarks** ([ExploitBench, arXiv 2605.14153](https://arxiv.org/abs/2605.14153)): existing security
   benchmarks count a crash as a successful exploit; graded on a capability ladder, public models crash targets
   routinely but rarely reach code execution. Shallow success is scored as success.

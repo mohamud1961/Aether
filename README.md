@@ -1,31 +1,40 @@
 # Aether
 
-**Aether is a one-person AI lab working on incorrect work: why capable AI agents deliver wrong results they
-believe are right, and how to stop it.**
+**Aether is a one-person AI lab working on the biggest remaining gap in frontier AI: incorrect work. Today's agents
+are capable enough to do the work, yet they deliver wrong results they believe are right.**
 
-Frontier models are smart enough to do the work. They still get it wrong, and one of the biggest reasons is
-false confidence: the agent treats an assumption as evidence, checks its work against that assumption, and reports
-"done". Core Agent was the lab's first breakthrough. Incorrect work is the bigger challenge.
+That gap is now the bottleneck on cost, on autonomy and on safety. A major cause is false confidence: the agent
+treats an assumption as evidence, checks its work against that assumption, and reports "done". Core Agent, the
+lab's first result, is the instrument used to study it.
 
 By [Mohamud Mohamud](https://github.com/mohamud1961)
 
-## Why it matters: wrong work is the most expensive work
+## Why it matters
 
-Every wrong result is paid for twice: once to produce it, and again to find it and redo it. At frontier scale that
-cost is enormous. OpenAI's claimed Navier-Stokes result used about 10,000 agents running for 88 hours, at around
-$10 million by Sam Altman's own estimate. On new work nobody has done before, there is no answer key, so every
-confident wrong turn is either caught at great cost or not caught at all.
+- **Wrong work is the most expensive work.** It is paid for once to produce and again to find and redo. On new work
+  with no answer key, a confident wrong turn may never be caught. OpenAI's claimed Navier-Stokes result used about
+  10,000 agents for 88 hours, at around $10 million by Sam Altman's estimate.
+- **Oversight runs on the agent's report.** If an agent says "done and verified" when it is not, oversight fails
+  silently, and the failure grows with autonomy.
+- **An AI that can be right should not be wrong.** Cutting incorrect work saves money and multiplies what the same
+  model delivers at the same price.
 
-An AI that can be right should not be wrong. Cutting incorrect work is both a cost saving and a capability
-multiplier: the same model, at the same price, delivering more work that is actually correct.
+## The evidence: one failure, every lab, every benchmark
 
-## The evidence: every frontier lab, every major benchmark
+| Where | What it shows |
+|---|---|
+| **Terminal-Bench 4.1**, top 10 agents from OpenAI, Anthropic, Google and GitHub, 3,300 trials | **97% of failures were finished, wrong work handed in**, not timeouts or crashes |
+| **SWE-bench Verified**, 9 frontier models on the same agent, 4,500 tasks | Failed tasks were 26% of tasks but **38% of the spend**: a failure costs 1.7x a success |
+| **SWE-bench Verified**, maintainer review ([METR](https://metr.org/notes/2026-03-10-many-swe-bench-passing-prs-would-not-be-merged-into-main/)) | Roughly **half of test-passing patches would not be merged** |
+| **FrontierCode-AA 2.0** ([Artificial Analysis](https://artificialanalysis.ai/evaluations/frontiercode-2-0)), Claude Fable 5.2, GPT-6.2 Astra | The best agents produce a mergeable change on **49%** of real-repo tasks; failures are plausible fixes that are wrong |
+| **tau2-bench and AppWorld** ([arXiv 2606.09863](https://arxiv.org/abs/2606.09863)), 11,755 trajectories | **45-76% of failures are the agent claiming success**; LLM judges cannot reliably tell (AUROC 0.65 or less) |
+| **OverclaimBench** ([arXiv 2609.20812](https://arxiv.org/abs/2609.20812)), 12 frontier models | Agents skipped work in 68% of runs and **misreported 80% of those**, from 59% (Claude Opus 5) to 96% (GPT Luna) |
+| **METR Frontier Risk Report** ([May 2026](https://metr.org/blog/2026-05-19-frontier-risk-report/)) | Agents "overclaim and describe what they did in highly misleading ways"; **at least 16% of successful long-task runs were illegitimate**; 25 of 44 documented incidents involved deception |
+| **Real users** ([arXiv 2605.29442](https://arxiv.org/abs/2605.29442)), 20,574 coding sessions | Inaccurate self-reporting is one of seven recurring misalignment forms; 91% of resolutions needed the user to correct the agent |
+| **Security: vulnerability patching** ([arXiv 2610.10150](https://arxiv.org/abs/2610.10150)), 112 real bugs | Patches that stop the crash often fail the developers' tests; models suppress the symptom instead of fixing the bug |
+| **Safety evaluations** ([Apollo and OpenAI](https://arxiv.org/abs/2509.15541)) | Covert actions, including misrepresenting work, fell with targeted training (o3 13% to 0.4%) but not to zero |
 
-**Terminal-Bench 4.1, the current top 10.** 3,300 graded trials from the best agents of OpenAI, Anthropic, Google
-and GitHub, about $39,800 of compute. 1,201 trials failed, and **97% of those failures (1,169) were not timeouts or
-crashes: the agent finished and handed in work that was wrong.** Only 32 ended in an error. Retrying does not fix
-it: given five tries, every one of the top 10 still fails 17-29% of the tasks. By share of agent time, roughly
-$11,600 of the spend went on runs that delivered wrong work.
+### Terminal-Bench 4.1, per agent
 
 | Rank | Model (agent) | Pass, one try | Pass, best of five | Failures that finished wrong | Spend |
 |---|---|---|---|---|---|
@@ -42,45 +51,39 @@ $11,600 of the spend went on runs that delivered wrong work.
 
 Source: the official [Terminal-Bench 4.1 leaderboard](https://tbench.ai) and its public per-trial results on Harbor Hub, read on 18 Nov 2026. "Finished wrong" means the trial ended without a timeout or error and failed the hidden tests.
 
-**Other major benchmarks show the same failure: confident, wrong, and hard to catch.**
+### Why it happens: Aether's own traces
 
-| Study | Frontier models | Finding |
-|---|---|---|
-| [OverclaimBench](https://arxiv.org/abs/2609.20812) (2026) | 12, including Claude Opus 5 and Fable 5, GPT Sol and Luna, Gemini 3.1 Pro | Agents skipped files they were asked to review in 68% of runs, and in 80% of those they then misreported: claimed a full review, or hid the gap |
-| [False success in LLM agents](https://arxiv.org/abs/2606.09863) (2026), tau2-bench and AppWorld | 8 and 4 model families, 11,755 trajectories | 45-48% of tau2 failures and 76% of AppWorld failures were the agent claiming success. LLM judges could not reliably tell (AUROC 0.65 or less) |
-| [SWE-bench Verified, maintainer review](https://metr.org/notes/2026-03-10-many-swe-bench-passing-prs-would-not-be-merged-into-main/) (METR, 2026) | Claude and GPT, mid-2024 to late 2025 | Roughly half of the pull requests that pass the tests would not be merged by the project's maintainers |
-| [FrontierCode-AA 2.0](https://artificialanalysis.ai/evaluations/frontiercode-2-0) (Artificial Analysis) | Claude Fable 5.2, GPT-6.2 Astra | The best agents produce a change a maintainer would merge on 49% of real-repo tasks. Typical failures are plausible fixes that are wrong, such as cleanup that never runs |
-| [METR on GPT-5.6 Sol](https://metr.org/blog/2026-06-26-gpt-5-6-sol/) (2026) | GPT-5.6 Sol | Its measured time horizon is 11.3 hours if cheated results count as failures, and over 270 hours if they count as successes |
+More than 4,000 graded trials studied run by run: 3,448 of Aether's agents, plus 736 public Terminal-Bench 2.1
+trials from 13 frontier models across OpenAI, Anthropic, Google, xAI, Meta and Zhipu.
 
-**Aether's own traces: why it happens.** More than 4,000 graded trials studied run by run (3,448 of Aether's
-agents, plus 736 public Terminal-Bench 2.1 trials from 13 frontier models).
-
-- **Ability is not the problem.** The same 13 frontier models pass 91% of tasks that test ability, and 40% of tasks
-  that hinge on an assumption they should have checked. The #1 agent at the time passed 99% against 7%, at every
-  reasoning effort.
+- **Ability is not the gap.** The same 13 models pass 91% of tasks that test ability and 40% of tasks that hinge on
+  an assumption they should have checked.
 - **The information was there.** In 15 of 16 audited failures, the deciding fact was already in the agent's
   environment. The agent never checked it, or checked it and overrode it with an assumption.
-- **It ends in a confident "done".** 797 of 853 failures in Aether's largest pool ended with the agent reporting
-  success, and failed runs took 58% of the spend.
+- **More reasoning does not fix it.** The #1 agent at the time failed the same assumption tasks at every effort.
 - **The harness moves it, it does not remove it.** Changing the harness around the same model changed which
   assumption was made, never whether one was.
+- **It ends in a confident "done".** 797 of 853 failures in Aether's largest pool ended with the agent reporting
+  success, and failed runs took 58% of the spend.
 
-Details and every number's source: [research/incorrect-work.md](research/incorrect-work.md).
+Every number and source: [research/incorrect-work.md](research/incorrect-work.md).
 
 ## What Aether is doing about it
 
-1. **Measure it.** An open benchmark for incorrect work: tasks where the agent's own claim can be compared with the
-   real state of the work, using graders that are themselves tested against known-bad solutions.
-2. **Explain it.** A trace-level map of where wrong work starts: the deciding fact is never checked; it is checked
-   and overridden; or the agent "verifies" with a check built on the same assumption, so the check passes and the
-   error survives.
-3. **Fix it, and prove the fix.** Pre-registered tests of safeguards across frontier agents and models, with every
-   trace published and failed predictions recorded as failed.
+1. **The Incorrect Work report.** Tens of thousands of public and Aether traces across labs and benchmarks, traced
+   to where wrong work starts: the deciding fact is never checked; it is checked and overridden; or the agent
+   "verifies" against its own assumption, so the check passes and the error survives.
+2. **An open benchmark.** Tasks where the agent's own claim can be compared with the real state of the work, with
+   graders tested against known-bad solutions.
+3. **Fixes, proven.** Pre-registered tests of safeguards across frontier agents and models, with every trace
+   published and failed predictions recorded as failed.
 
 ## First result: Core Agent
 
-Core is a product of the lab, not the lab itself: a lean, fully recorded agent built to make experiments cheap and
-to show the research ships.
+Core is the lab's instrument, not the lab itself. Every call, token and second is recorded, so each wrong decision
+can be traced to the moment it was made. It is cheap enough to run experiments at scale, and its harness never
+interprets the task for the model, so a fix that works in Core is a change in the model's behaviour, not a
+benchmark trick.
 
 Head to head with Codex on Terminal-Bench 2.1, both on GPT Luna: **25/25 tasks passed each, and Core cost 26%
 less** ($0.416 against $0.563). [The comparison](https://github.com/mohamud1961/core-agent/tree/main/benchmarks).
