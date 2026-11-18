@@ -11,7 +11,7 @@ import pytest
 
 from aether.core.route_modality import ROUTE_MODALITY_ENV, RouteModalityError, check
 
-LUNA = Path(__file__).resolve().parents[2] / "research/core_hybrid_20261113/route_modality/gpt-6-luna.json"
+LUNA = Path(__file__).resolve().parent / "fixtures/route_modality_gpt-6-luna.json"
 
 
 def record(tmp_path, **kw):

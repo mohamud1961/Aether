@@ -40,7 +40,7 @@ def test_missing_required_evidence_cannot_produce_a_green_replay_gate():
     import copy
     import json
     replay = _replay_module()
-    artifact = Path(__file__).resolve().parents[2] / "research/core_consolidation_20261025/c1/replay_results_safe_boundary.json"
+    artifact = Path(__file__).resolve().parent / "fixtures/replay_results_safe_boundary.json"
     baseline = json.loads(artifact.read_text())
     assert replay._verdict(baseline)["ok"]
     for section, missing in (

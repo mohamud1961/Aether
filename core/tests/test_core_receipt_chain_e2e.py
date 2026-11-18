@@ -18,7 +18,7 @@ from aether.core.loop import CoreConfig, Trace, run_agent
 from aether.core.provider import ChatProvider
 from tests.core_fakes import LocalEnv, ScriptedClient, call
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 from receipt_chain import build  # noqa: E402
 
 pytestmark = pytest.mark.skipif(not os.path.exists("/proc/self/stat"), reason="native Linux qualification")
