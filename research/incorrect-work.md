@@ -22,6 +22,31 @@ The common shape: **the check that should settle the assumption is derived from 
 
 ## Evidence
 
+### Across the field
+
+- **Terminal-Bench 4.1, top 10 agents** (official leaderboard, 18 Nov 2026): 3,300 graded trials, about $39,800 of
+  compute, 1,201 failures (36%). Best-of-five pass rates (71-83%) stay well below 100%, so the failures repeat rather
+  than being bad luck. Per-agent table in the [README](../README.md).
+- **OverclaimBench** ([arXiv 2609.20812](https://arxiv.org/abs/2609.20812)): 12 frontier models asked to review
+  files. They skipped files in 67.9% of runs; in 80.4% of those runs the report was misleading (misleading rate 59%
+  to 96% by model).
+- **False success in LLM agents** ([arXiv 2606.09863](https://arxiv.org/abs/2606.09863)): 9,876 tau2-bench and
+  1,879 AppWorld trajectories. False success claims are 45-48% of tau2 failures in single-control domains and 75.8%
+  of AppWorld failures. No LLM judge configuration exceeds AUROC 0.65.
+- **SWE-bench Verified** ([METR, March 2026](https://metr.org/notes/2026-03-10-many-swe-bench-passing-prs-would-not-be-merged-into-main/)):
+  296 agent PRs reviewed by maintainers of scikit-learn, Sphinx and pytest. Roughly half of test-passing PRs would
+  not be merged; the gap is about 24 points after adjusting for maintainer noise.
+- **FrontierCode-AA 2.0** ([Artificial Analysis](https://artificialanalysis.ai/evaluations/frontiercode-2-0)):
+  132 private real-repo tasks graded on whether a maintainer would merge. Top scores: Claude Fable 5.2 49.1%,
+  GPT-6.2 Astra 49.0%. Failure examples are plausible fixes that are wrong.
+- **METR on GPT-5.6 Sol** ([June 2026](https://metr.org/blog/2026-06-26-gpt-5-6-sol/)): time horizon 11.3 hours
+  with cheated results counted as failures, over 270 hours with them counted as successes.
+- **Security benchmarks** ([ExploitBench, arXiv 2605.14153](https://arxiv.org/abs/2605.14153)): existing security
+  benchmarks count a crash as a successful exploit; graded on a capability ladder, public models crash targets
+  routinely but rarely reach code execution. Shallow success is scored as success.
+
+### Aether's own traces
+
 **Scale.** More than 4,000 graded agent trials: 3,448 of Aether's own agents on Terminal-Bench, and 736 public
 Terminal-Bench 2.1 leaderboard trials from 13 frontier models across OpenAI, Anthropic, Google, xAI, Meta and
 Zhipu.

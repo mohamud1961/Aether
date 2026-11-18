@@ -19,32 +19,51 @@ confident wrong turn is either caught at great cost or not caught at all.
 An AI that can be right should not be wrong. Cutting incorrect work is both a cost saving and a capability
 multiplier: the same model, at the same price, delivering more work that is actually correct.
 
-## The evidence: this is a universal LLM problem
+## The evidence: every frontier lab, every major benchmark
 
-More than 4,000 graded agent trials studied trial by trial: 3,448 of Aether's own agents, and 736 public
-Terminal-Bench 2.1 leaderboard trials from 13 frontier models across OpenAI, Anthropic, Google, xAI, Meta and Zhipu.
+**Terminal-Bench 4.1, the current top 10.** 3,300 graded trials from the best agents of OpenAI, Anthropic, Google
+and GitHub, about $39,800 of compute. More than a third of the trials fail, and retrying does not fix it: given five
+tries, every one of the top 10 still fails 17-29% of the tasks.
 
-**The same models, on the same leaderboard, split sharply by kind of task.** On tasks that test ability, they pass
-91%. On tasks that hinge on an assumption the agent has to check, they pass 40%.
+| Rank | Model (agent) | Pass, one try | Pass, best of five | Spend |
+|---|---|---|---|---|
+| 1 | Copilot Fusion (GitHub Copilot) | 71% | 83% | $2.0k |
+| 2 | Claude Opus 5.5 (Claude Code) | 66% | 80% | $4.7k |
+| 2 | Claude Fable 5.2 (Claude Code) | 66% | 79% | $16.5k |
+| 4 | Gemini 4 Carbon (Antigravity CLI) | 65% | 79% | $1.4k |
+| 5 | Claude Sonnet 5.5 (Claude Code) | 64% | 80% | $7.3k |
+| 6 | GPT-6.2 Astra (Codex) | 62% | 73% | $1.4k |
+| 7 | GPT-6.2 Sol (Codex) | 62% | 73% | $0.3k |
+| 8 | GPT-6.1 Sol (Codex) | 61% | 74% | $0.6k |
+| 9 | GPT-6 Astra, max (Codex) | 60% | 73% | $3.3k |
+| 10 | GPT-6 Astra, high (Codex) | 60% | 71% | $2.3k |
 
-| Model | Ability tasks | Assumption tasks |
+Source: the official [Terminal-Bench 4.1 leaderboard](https://tbench.ai), read on 18 Nov 2026.
+
+**Other major benchmarks show the same failure: confident, wrong, and hard to catch.**
+
+| Study | Frontier models | Finding |
 |---|---|---|
-| GPT Astra (Codex, #1 overall) | 99% | 7% |
-| Claude Fable 5 (Claude Code) | 100% | 33% |
-| GPT Terra | 100% | 30% |
-| Gemini 3.1 Pro | 67% | 40% |
-| All 13 models | 91% | 40% |
+| [OverclaimBench](https://arxiv.org/abs/2609.20812) (2026) | 12, including Claude Opus 5 and Fable 5, GPT Sol and Luna, Gemini 3.1 Pro | Agents skipped files they were asked to review in 68% of runs, and in 80% of those they then misreported: claimed a full review, or hid the gap |
+| [False success in LLM agents](https://arxiv.org/abs/2606.09863) (2026), tau2-bench and AppWorld | 8 and 4 model families, 11,755 trajectories | 45-48% of tau2 failures and 76% of AppWorld failures were the agent claiming success. LLM judges could not reliably tell (AUROC 0.65 or less) |
+| [SWE-bench Verified, maintainer review](https://metr.org/notes/2026-03-10-many-swe-bench-passing-prs-would-not-be-merged-into-main/) (METR, 2026) | Claude and GPT, mid-2024 to late 2025 | Roughly half of the pull requests that pass the tests would not be merged by the project's maintainers |
+| [FrontierCode-AA 2.0](https://artificialanalysis.ai/evaluations/frontiercode-2-0) (Artificial Analysis) | Claude Fable 5.2, GPT-6.2 Astra | The best agents produce a change a maintainer would merge on 49% of real-repo tasks. Typical failures are plausible fixes that are wrong, such as cleanup that never runs |
+| [METR on GPT-5.6 Sol](https://metr.org/blog/2026-06-26-gpt-5-6-sol/) (2026) | GPT-5.6 Sol | Its measured time horizon is 11.3 hours if cheated results count as failures, and over 270 hours if they count as successes |
 
-Six tasks chosen to contrast the two kinds; per-model results for all 13 are in
-[research/incorrect-work.md](research/incorrect-work.md).
+**Aether's own traces: why it happens.** More than 4,000 graded trials studied run by run (3,448 of Aether's
+agents, plus 736 public Terminal-Bench 2.1 trials from 13 frontier models).
 
-- **It is not missing information.** In 15 of 16 audited failures, the fact that decided the task was already in
-  the agent's environment. The agent never checked it, or checked it and overrode it with an assumption.
-- **It is not reasoning effort.** The #1 agent failed the same assumption tasks at every reasoning level, low to max.
-- **It is not the harness.** Changing the harness around the same model changed which assumption was made, never
-  whether one was. Verifiers, ledgers, prewritten checks and a reading judge were all tested and none was kept.
-- **It ends in a confident "done".** Of 853 failures in Aether's own largest pool, 797 ended with the agent finishing
-  and reporting success, and failed runs took 58% of the spend.
+- **Ability is not the problem.** The same 13 frontier models pass 91% of tasks that test ability, and 40% of tasks
+  that hinge on an assumption they should have checked. The #1 agent at the time passed 99% against 7%, at every
+  reasoning effort.
+- **The information was there.** In 15 of 16 audited failures, the deciding fact was already in the agent's
+  environment. The agent never checked it, or checked it and overrode it with an assumption.
+- **It ends in a confident "done".** 797 of 853 failures in Aether's largest pool ended with the agent reporting
+  success, and failed runs took 58% of the spend.
+- **The harness moves it, it does not remove it.** Changing the harness around the same model changed which
+  assumption was made, never whether one was.
+
+Details and every number's source: [research/incorrect-work.md](research/incorrect-work.md).
 
 ## What Aether is doing about it
 
