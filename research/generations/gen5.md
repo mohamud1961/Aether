@@ -1,6 +1,6 @@
 # Gen 5: Aether Core
 
-**What this is:** The current lean core, in `aether/core/`. The model runs a loop of turns, tool calls and results until it finishes or time runs out. Observable model exchanges and tool results are recorded. The model owns the finish; reviews inform it.
+**What this is:** The current lean core, now in [`core/`](../../core/). The model runs a loop of turns, tool calls and results until it finishes or time runs out. Observable model exchanges and tool results are recorded. The model owns the finish; reviews inform it.
 **Key result:** No lift over a stock harness. On the 18-row development board, Aether Core with GLM-5.3-Flash solved 12 of 18 and a stock reference agent with the same model also solved 12 of 18. About 20 mechanism tests against false completion, 11 to 17 October, promoted none.
 **Why it matters:** The failures were studied row by row. Outcomes turned out to be close to deterministic per model and task, so most of the remaining error belongs to the model's reading of specific tasks, and a harness lever that only corrects one model's reading of one task is a crutch by this project's own test.
 
@@ -10,12 +10,12 @@ The development sweep of 12 October (below) changed code between rows, so it is 
 
 | Path | What it is |
 |---|---|
-| `aether/core/` | The runtime: loop, provider adapters (Chat Completions and Responses), terminals, file tools, context, deadlines, clone, contracts, reviews, Harbor agent |
+| `core/src/aether/core/` | The runtime: loop, provider adapters (Chat Completions and Responses), terminals, file tools, context, deadlines, clone, contracts, reviews, Harbor agent |
 | `tests/core/` | Its tests. They use scripted provider responses with real shell and file effects; Linux PTY and Docker tests skip elsewhere |
 | `docs/core/` | Architecture, lessons, self-audit and validation notes |
 | `research/core/` | Pre-registrations and results for every Core experiment, 12 to 18 October |
 
-The commit history of `aether/core/` keeps the original development order and dates.
+The commit history of `aether/core/` (to 21 October) and of `core/` (from 13 October, where Core was first packaged on its own) keeps the original development order and dates.
 
 ## Core idea
 

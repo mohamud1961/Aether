@@ -4,6 +4,8 @@ Five generations of agent harness, a synthesis of 312 external runs, and the fin
 short version: verification is where a harness adds most and fails most quietly, and trajectory cost,
 not per-call cost, is what to optimise.
 
+The working agent these findings shaped is [Core](../core/): real runs, a quickstart and how it is built.
+
 | Read | What it is |
 |---|---|
 | [findings.md](findings.md) | The five findings, with numbers, evidence and limits. **Start here** |

@@ -2,7 +2,7 @@
 
 ## Prime Agent compaction prompts
 
-`aether/core/compaction.py` contains context-compaction prompts derived from Prime Agent, from
+`core/src/aether/core/compaction.py` contains context-compaction prompts derived from Prime Agent, from
 `PrimeIntellect-ai/prime-agent` at commit `3e0893260eefdab3c8391dab9b7386d6cc864a62`
 (`crates/pa-core/src/session_engine/compaction.rs` and `compaction_utils.rs`). Public curation normalizes terminology (including “user” to “principal”), so these are adapted
 prompts rather than byte-identical copies. The source module’s historical “verbatim” description
@@ -34,6 +34,6 @@ SOFTWARE.
 
 ## Context-limit method (CLM)
 
-`aether/core/clm.py` implements the model-managed context method described in the README of Meta's
+`core/src/aether/core/clm.py` implements the model-managed context method described in the README of Meta's
 context-language-models `clm_harness`. It was written clean-room from that description; no CLM code or text is
 included (CLM is licensed CC BY-NC 4.0).

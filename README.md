@@ -1,14 +1,48 @@
 # Aether
 
-**A research programme on agent harnesses: what should a harness add to a frontier model, and how would we know?**
+**Aether is a one-person AI lab that builds agents and studies what makes them reliable.**
+Its agent, **[Core](core/)**, does real work on a computer: you describe a job in plain words, and it works in a
+Linux sandbox until the job is done, then checks the result. The research asks a harder question: what should
+the code around a model add, and how would we know it helped?
 
 By [Mohamud Mohamud](https://github.com/mohamud1961)
 
-Aether is not a coding-agent product. It is a year-long empirical investigation into the layer between a model and
-the world: the loop, tools, context, verification and evaluation that turn a language model into an agent. Across
-five harness generations, the project catalogues 151 evaluation records. The research includes exploratory and
-invalid outcomes as well as pre-registered comparisons, held-out tasks and row-level trace audits; many proposed
-mechanisms did not survive selection, and the reasons are documented.
+## Core at work
+
+Real runs with `gpt-6-luna`, graded afterwards by hidden tests. Chosen examples; details in
+[core/RUNS.md](core/RUNS.md).
+
+| Job | Time | Cost |
+|---|---|---|
+| Bank capital calculation under EU banking rules, with an Excel workbook of the workings | 17m 15s | $0.18 |
+| A graphic rebuilt as a layout config that renders pixel-identical | 26m 42s | $0.19 |
+| A 3D FreeCAD part built from an engineering drawing | 12m 34s | $0.11 |
+| 17 scanned documents sorted, with invoice totals and VAT summarised | 5m 44s | $0.03 |
+| A COBOL program rewritten in Python, matching byte for byte | 4m 20s | $0.03 |
+
+Try it offline in a minute, no API key: [core/README.md](core/README.md#try-it-in-60-seconds).
+
+## Pick your path
+
+| You are | Start here | What you will find |
+|---|---|---|
+| **Hiring engineers** | **[core/](core/)** | What Core does, real runs, a quickstart, how it works, how it is built and tested |
+| **Funding or leading research** | **[research/](research/)** | The questions, the findings that survived, the method, and the negative results |
+| **Both: research engineering** | Read on | The two together, below |
+
+## How the two fit together
+
+Core is the working agent. The research is how it got that way. Every change to Core starts as a small,
+switchable experiment with a written prediction, runs on real tasks, and is kept only if the numbers hold up on
+tasks it was not tuned on. Ideas that do not earn their place are removed quickly and cheaply, and the record of
+why is kept. The research is the
+evidence behind each design choice; Core is the proof that the research ships.
+
+- How Core is built: [core/BUILDING.md](core/BUILDING.md)
+- What was tried, kept and removed: [core/EXPERIMENTS.md](core/EXPERIMENTS.md)
+- The research findings: [research/findings.md](research/findings.md)
+
+# The research
 
 ## Empirical work at a glance
 
@@ -110,9 +144,9 @@ Evidence and limits for each finding: [research/findings.md](research/findings.m
 
 ## Contributions
 
-- **Aether Core** ([aether/core/](aether/core/)): a lean agent runtime in which every turn, tool call, result and
-  timing is recorded. It has persistent named terminals, model-managed context, deadline visibility and disposable
-  container clones for running checks without touching the graded state.
+- **Core** ([core/](core/)): the agent. A lean runtime in which every turn, tool call, result and timing is
+  recorded, with persistent named terminals, model-managed context, deadline visibility and disposable container
+  clones for running checks without touching the graded state.
 - **A public evaluation suite** ([evals/](evals/), [harness_evals/](harness_evals/)): 28 task definitions with
   graders, references, known-bad states and careless-agent controls. The validation methods and their current
   evidence boundary are documented in [the measurement-validity record](evals/methods/measurement-validity.md).
@@ -157,7 +191,8 @@ The full arc: [research/generations/](research/generations/).
 
 | Folder | What's inside |
 |---|---|
-| [aether/](aether/) | The harness: Aether Core ([aether/core/](aether/core/)), the current lean loop, and the Gen 4 runtime it replaced |
+| [core/](core/) | **Core, the agent.** Its own package, tests, real runs and build notes |
+| [aether/](aether/) | The Gen 4 runtime that Core replaced, kept for reference |
 | [research/](research/) | Findings, generation pages, postmortems, the cemetery, a synthesis of 312 external agent runs, and every Gen 5 pre-registration ([research/core/](research/core/)) |
 | [evals/](evals/) | 28 current task definitions across nine targets, eight documented evaluation methods, and a catalogue of 151 historical evaluation records |
 | [harness_evals/](harness_evals/) | The evaluation runner: task format, sandboxed runs, grader validity, trial rows, statistics |
@@ -173,6 +208,16 @@ subagents. Running research this way is itself a multi-agent system, with work p
 limits and failure modes of its own, and it is documented as one in [workflows/](workflows/).
 
 ## Quick start
+
+Core, the agent (Python 3.12+, [uv](https://docs.astral.sh/uv/)):
+
+```bash
+cd core && uv sync --frozen
+uv run python examples/offline_smoke.py
+uv run pytest -q
+```
+
+The research tools and evaluation suite (Python 3.11+):
 
 ```bash
 pip install -e ".[dev]"
