@@ -28,3 +28,21 @@ jobs:
           name: linux-test-results
           path: pytest-results.xml
           if-no-files-found: warn
+
+  core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: uv sync --frozen
+      - name: Offline smoke run
+        run: uv run python examples/offline_smoke.py
+      - name: Tests
+        run: uv run pytest -q -rs
