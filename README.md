@@ -1,13 +1,46 @@
 # Aether
 
-**Aether is a one-person AI lab that builds agents and studies what makes them reliable.**
-Its agent, **[Core Agent](https://github.com/mohamud1961/core-agent)**, is a lean, cheap agent: 26% cheaper than Codex on Terminal-Bench 2.1, on the same
-model. You describe a job in plain words, and it works in a Linux sandbox until the job is done. The research asks a harder question: what
-should the code around a model add, and how would we know it helped?
+**Aether is a one-person AI lab working on false confidence in AI agents: why even frontier agents treat an
+assumption as evidence, and report "done" when the work is wrong.**
+
+Core Agent was the first breakthrough: an agent 26% cheaper than Codex on Terminal-Bench 2.1, on the same model.
+The bigger challenge is the one Aether is going after: making an agent's "done" something you can trust.
 
 By [Mohamud Mohamud](https://github.com/mohamud1961)
 
-## Core Agent at work
+## The problem
+
+Agents now run long jobs with nobody watching, then report back that the work is finished and checked. Oversight
+depends on that report being true. Aether's question is when it is, and why it so often is not.
+
+- **Thousands of traces.** 3,448 graded trials of Aether's own agents, plus 736 public trials from frontier agents,
+  studied trial by trial, with the decision rule for each experiment fixed before it ran.
+- **It is a frontier problem, not a small-model one.** Across 736 public Terminal-Bench 2.1 trials from 22
+  submissions and 13 models, the top-ranked agent (Codex on GPT Astra) failed all 25 runs on two tasks, at every
+  reasoning effort. Other frontier models failed the same tasks with the same reading.
+- **The information was there.** In 15 of 16 audited failures, the fact that decided the task was already in the
+  agent's environment. The agent either never checked it, or checked it and overrode it with an assumption, and
+  then reported success.
+- **Harness patches move it, they do not remove it.** Changing the harness around the same model changed which
+  assumption was made, never whether one was. Verifiers, requirement ledgers, prewritten checks and a reading judge
+  were all tested against false completion and none was good enough to keep (details below).
+
+Summary and evidence: [research/false-confidence.md](research/false-confidence.md).
+
+## What Aether is doing about it
+
+1. **Measure it.** An open false-confidence benchmark: tasks where the agent's own claim can be compared with the
+   real state of the work, using graders that are themselves tested against known-bad solutions.
+2. **Explain it.** A trace-level map of where false confidence enters: the deciding fact is never checked; it is
+   checked and overridden; or the agent "verifies" with a check built on the same assumption, so the check passes
+   and the error survives.
+3. **Test fixes honestly.** Pre-registered tests of safeguards across frontier agents and models, with every trace
+   published and failed predictions recorded as failed.
+
+## First result: Core Agent
+
+Core is a product of the lab, not the lab itself: a lean, fully recorded agent built to make experiments cheap and
+to show the research ships.
 
 Head to head with Codex on Terminal-Bench 2.1, both on GPT Luna: **25/25 tasks passed each, and Core cost 26%
 less** ($0.416 against $0.563). [The comparison](https://github.com/mohamud1961/core-agent/tree/main/benchmarks).
@@ -31,7 +64,7 @@ Code, quickstart and how it is built: **[github.com/mohamud1961/core-agent](http
 |---|---|---|
 | **Hiring AI engineers** (startups, product teams) | **[Core Agent](https://github.com/mohamud1961/core-agent)** | The cost comparison with Codex, real runs, a 60-second quickstart, how it is built and tested |
 | **Hiring research engineers** (labs, senior roles) | Read on, then [Core Agent](https://github.com/mohamud1961/core-agent) and [research/findings.md](research/findings.md) | How the engineering and the research fit, and the evidence behind each design choice |
-| **Fellowships, residencies and grants** | **[research/](research/)** | The questions, the findings that survived, the method, the negative results, and what is still open |
+| **Fellowships, residencies and grants** | **[research/false-confidence.md](research/false-confidence.md)**, then [research/](research/) | The problem, the evidence from thousands of traces, the plan, the method and the negative results |
 
 ## At a glance
 
