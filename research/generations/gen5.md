@@ -1,6 +1,6 @@
 # Gen 5: Aether Core
 
-**What this is:** The current lean core, now in [`core/`](../../core/). The model runs a loop of turns, tool calls and results until it finishes or time runs out. Observable model exchanges and tool results are recorded. The model owns the finish; reviews inform it.
+**What this is:** The current lean core, now in [`core/`](https://github.com/mohamud1961/core-agent/blob/main/). The model runs a loop of turns, tool calls and results until it finishes or time runs out. Observable model exchanges and tool results are recorded. The model owns the finish; reviews inform it.
 **Key result:** No lift over a stock harness. On the 18-row development board, Aether Core with GLM-5.3-Flash solved 12 of 18 and a stock reference agent with the same model also solved 12 of 18. About 20 mechanism tests against false completion, 11 to 17 October, promoted none.
 **Why it matters:** The failures were studied row by row. Outcomes turned out to be close to deterministic per model and task, so most of the remaining error belongs to the model's reading of specific tasks, and a harness lever that only corrects one model's reading of one task is a crutch by this project's own test.
 

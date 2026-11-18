@@ -29,27 +29,3 @@ jobs:
           path: pytest-results.xml
           if-no-files-found: warn
 
-  core:
-    runs-on: ubuntu-latest
-    # Core's Linux tests are qualified in a plain Linux container (real /proc, git, process tree), not on the
-    # hosted runner VM, whose extra services and process limits change what the process and state tests observe.
-    # --init reaps finished processes, and the tests run as a normal user so real permission errors happen.
-    container:
-      image: python:3.12-bookworm
-      options: --init
-    timeout-minutes: 40
-    defaults:
-      run:
-        working-directory: core
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install
-        run: |
-          pip install -q uv
-          useradd -m tester
-          chown -R tester "$GITHUB_WORKSPACE"
-          runuser -u tester -- env HOME=/home/tester uv sync --frozen
-      - name: Offline smoke run
-        run: runuser -u tester -- env HOME=/home/tester uv run python examples/offline_smoke.py
-      - name: Tests
-        run: runuser -u tester -- env HOME=/home/tester uv run pytest -q -rfs -m "not sweep"
