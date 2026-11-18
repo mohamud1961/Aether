@@ -22,6 +22,7 @@ from tests.core_fakes import LocalEnv
 pytestmark = pytest.mark.skipif(
     not os.path.exists("/proc/self/stat"), reason="native Linux qualification"
 )
+pytestmark = [pytestmark, pytest.mark.sweep]  # exhaustive kill-point sweep: tens of minutes
 
 # Slow: still running when the controller recovers. Fast: finished before the model's re-send arrives.
 INTENTS = {

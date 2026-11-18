@@ -21,6 +21,7 @@ from aether.core.mcp import Mcp
 from tests.core_fault_sweep import CutExecs, kill_points
 
 pytestmark = pytest.mark.skipif(not os.path.exists("/proc/self/stat"), reason="native Linux qualification")
+pytestmark = [pytestmark, pytest.mark.sweep]  # exhaustive kill-point sweep: tens of minutes
 FIXTURE = str(Path(__file__).with_name("mcp_fixture_server.py"))
 TURNS = 8
 

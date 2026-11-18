@@ -67,7 +67,7 @@ def test_parallel_reads_keep_call_ids_and_cannot_cross_a_write(tmp_path):
             self.both = asyncio.Event()
 
         async def exec(self, command, **kwargs):
-            if "awk 'END" in command and self.reads < 2:
+            if "awk -v total_file" in command and self.reads < 2:
                 self.reads += 1
                 if self.reads == 2:
                     self.both.set()

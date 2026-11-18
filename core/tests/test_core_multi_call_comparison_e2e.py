@@ -18,7 +18,7 @@ class TimedReads(LocalEnv):
         self.peak = 0
 
     async def exec(self, command, **kwargs):
-        if "awk 'END" not in command:
+        if "awk -v total_file" not in command:
             return await super().exec(command, **kwargs)
         self.in_flight += 1
         self.peak = max(self.peak, self.in_flight)

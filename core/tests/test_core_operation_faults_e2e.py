@@ -29,6 +29,7 @@ from tests.core_fakes import LocalEnv
 pytestmark = pytest.mark.skipif(
     not os.path.exists("/proc/self/stat"), reason="native Linux shell qualification"
 )
+pytestmark = [pytestmark, pytest.mark.sweep]  # exhaustive kill-point sweep: tens of minutes
 
 # The effect lands at once; the receipt only a second later. A command that is still running when the controller
 # recovers is the case the start token exists for: a fast command has its receipt before any recovery looks.

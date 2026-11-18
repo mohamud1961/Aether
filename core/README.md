@@ -52,7 +52,8 @@ writes a file through Core's real tools and prints:
 {"status": "finished", "actual_file": "hello from installed Aether\n", "network_calls": 0, "attempts": 2}
 ```
 
-Run the tests with `uv run pytest -q`. Linux-only tests (PTY, Docker, process cleanup) skip on macOS.
+Run the tests with `uv run pytest -q -m "not sweep"`. Linux-only tests (PTY, Docker, process cleanup) skip on
+macOS. The exhaustive kill-point sweeps take tens of minutes on Linux; run them with `uv run pytest -m sweep`.
 
 **With a real model:** Core talks to any OpenAI-compatible endpoint through
 [provider.py](src/aether/core/provider.py). For full task runs it plugs into

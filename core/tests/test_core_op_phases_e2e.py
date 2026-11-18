@@ -26,7 +26,10 @@ from aether.core.repl import Repl
 from aether.core.terminal import Terminals
 from tests.core_fault_sweep import CutExecs, kill_points
 
-pytestmark = pytest.mark.skipif(not os.path.exists("/proc/self/stat"), reason="native Linux qualification")
+pytestmark = [
+    pytest.mark.skipif(not os.path.exists("/proc/self/stat"), reason="native Linux qualification"),
+    pytest.mark.sweep,
+]
 
 CELL = {
     "slow": "open('effects', 'a').write('x')\nimport time\ntime.sleep(1)\nprint('OPSM-' + 'RAN')",
