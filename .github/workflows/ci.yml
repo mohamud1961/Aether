@@ -31,18 +31,18 @@ jobs:
 
   core:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Core's Linux tests are qualified in a plain Linux container (real /proc, git, process tree), not on the
+    # hosted runner VM, whose extra services and process limits change what the process and state tests observe.
+    container: python:3.12-bookworm
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: core
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.12"
       - name: Install
-        run: uv sync --frozen
+        run: pip install -q uv && uv sync --frozen
       - name: Offline smoke run
         run: uv run python examples/offline_smoke.py
       - name: Tests
-        run: uv run pytest -q -rs -m "not sweep"
+        run: uv run pytest -q -rfs -m "not sweep"
