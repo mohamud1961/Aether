@@ -26,17 +26,27 @@ Try it offline in a minute, no API key: [core/README.md](core/README.md#try-it-i
 
 | You are | Start here | What you will find |
 |---|---|---|
-| **Hiring engineers** | **[core/](core/)** | What Core does, real runs, a quickstart, how it works, how it is built and tested |
-| **Funding or leading research** | **[research/](research/)** | The questions, the findings that survived, the method, and the negative results |
-| **Both: research engineering** | Read on | The two together, below |
+| **Hiring AI engineers** (startups, product teams) | **[core/](core/)** | What Core does, real runs with time and cost, a 60-second quickstart, how it is built and tested |
+| **Hiring research engineers** (labs, senior roles) | Read on, then [core/](core/) and [research/findings.md](research/findings.md) | How the engineering and the research fit, and the evidence behind each design choice |
+| **Fellowships, residencies and grants** | **[research/](research/)** | The questions, the findings that survived, the method, the negative results, and what is still open |
+
+## At a glance
+
+| | |
+|---|---|
+| **The agent** | Core: about 23,000 lines of Python in 120 modules, 174 test files, every call, token and second recorded |
+| **Real work** | Hard tasks graded by hidden tests, from EU bank capital rules to CAD from a drawing, for $0.005 to $0.44 a job |
+| **The research** | Five harness generations, 151 evaluation records, 32 retired mechanisms with the evidence that retired them |
+| **External evidence** | A trace study of 312 runs from another agent system, across 12+ failure families |
+| **Method** | Written predictions before each run, held-out checks, known-bad controls, row-level trace audits |
+| **Build record** | About 840 commits with their real dates, Core's 373 among them |
 
 ## How the two fit together
 
 Core is the working agent. The research is how it got that way. Every change to Core starts as a small,
 switchable experiment with a written prediction, runs on real tasks, and is kept only if the numbers hold up on
 tasks it was not tuned on. Ideas that do not earn their place are removed quickly and cheaply, and the record of
-why is kept. The research is the
-evidence behind each design choice; Core is the proof that the research ships.
+why is kept. The research is the evidence behind each design choice; Core is the proof that the research ships.
 
 - How Core is built: [core/BUILDING.md](core/BUILDING.md)
 - What was tried, kept and removed: [core/EXPERIMENTS.md](core/EXPERIMENTS.md)
