@@ -1,0 +1,71 @@
+"""A copy of the working directory as it was before the first action (AETHER_CORE_START_COPY, default on; "off" disables).
+
+Why (pass/fail study, 28 Oct, 47 Luna runs): wrong runs destroyed irreplaceable inputs before reading them (a
+database opened before its write-ahead log was copied, a repository reset before the final check) and then
+rebuilt or guessed what was lost; correct runs worked from a copy. The harness takes that copy once, before the
+model acts, under the control directory, and says where it is in the task message. It never reads or uses it.
+
+Bounded: a working directory over LIMIT_BYTES (or one that cannot be measured or copied) is not copied, and the
+task message says nothing. The copy is taken before the start marker, so it is never counted as the run's work.
+"""
+
+from __future__ import annotations
+
+import posixpath
+import re
+import shlex
+
+from .env import Environment, run
+
+START_COPY_ENV = "AETHER_CORE_START_COPY"
+# Study arm AETHER_CORE_START_NOTE=late (11 Nov, g3/MISSION_LOG.md BX/XT): the copy is taken as always, but the note
+# and the per-action state line stay out of view until a start file has been changed or removed. Runs told about
+# the copy at the start went into repository history first (sanitize); runs that lost an input need it (db-wal).
+NOTE_ENV = "AETHER_CORE_START_NOTE"
+_CHANGED = re.compile(r"files vs start: \d+ added, (\d+) removed, (\d+) changed")
+LIMIT_BYTES = 512 * 1024 * 1024
+NOTE = ("(A copy of {workdir} as it was before your first action is at {copy}. The harness made it and does "
+        "not use it.)")
+
+
+async def take(env: Environment, workdir: str, control_dir: str, view: bool = False) -> tuple[str, dict]:
+    """Copy ``workdir`` under ``control_dir``; returns the note for the task message ('' when not copied) and a
+    trace row. ``view`` also installs the read-only changes command (state_view) and names it in the note."""
+    copy = posixpath.join(control_dir, "start", posixpath.basename(workdir.rstrip("/")) or "root")
+    q = shlex.quote
+    script = (f"k=$(du -sk {q(workdir)} 2>/dev/null | cut -f1); [ -n \"$k\" ] || {{ echo unmeasured; exit 3; }}; "
+              f"[ $((k*1024)) -le {LIMIT_BYTES} ] || {{ echo too_large $k; exit 4; }}; "
+              f"mkdir -p {q(posixpath.dirname(copy))} && cp -a {q(workdir)} {q(copy)} && echo ok $k")
+    try:
+        result = await run(env, script, timeout_s=120)
+    except Exception as exc:  # an instrument: no copy, no note
+        return "", {"copied": False, "reason": f"{type(exc).__name__}: {exc}"[:300]}
+    words = result.stdout.split()
+    if result.code != 0 or not words or words[0] != "ok":
+        return "", {"copied": False, "reason": (result.stdout or result.stderr).strip()[:300], "exit": result.code}
+    row = {"copied": True, "path": copy, "kib": int(words[1])}
+    if not view:
+        return NOTE.format(workdir=workdir, copy=copy), row
+    from . import state_view
+
+    install, cmd = state_view.install_command(workdir, copy, control_dir)
+    head = f"git -C {q(copy)} rev-parse HEAD 2>/dev/null || true"
+    try:
+        result = await run(env, f"{install}{head}", timeout_s=30)
+    except Exception as exc:  # an instrument: the copy stands, no command is named
+        result, row["view_error"] = None, f"{type(exc).__name__}: {exc}"[:300]
+    if result is None or result.code != 0:
+        return NOTE.format(workdir=workdir, copy=copy), {**row, "view": False, "exit": result and result.code}
+    row.update(view=cmd, start_head=result.stdout.strip()[:40] or None)
+    return NOTE.format(workdir=workdir, copy=copy)[:-1] + state_view.NOTE.format(cmd=cmd) + ")", row
+
+
+def late(update: str, note: str) -> tuple[str, str]:
+    """Late mode, per tool result: (text to show, note still held). Nothing is shown until the state line reports a
+    removed or changed start file; that result carries the state line and the note, and later ones are unchanged."""
+    if not note:
+        return update, ""
+    match = _CHANGED.search(update)
+    if match and (int(match.group(1)) or int(match.group(2))):
+        return f"{update}\n{note}", ""
+    return "", note

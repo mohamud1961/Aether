@@ -1,0 +1,277 @@
+"""Default-off Core-native historical evidence discoverability after CLM edits.
+
+This is PRESENTATION only. The original Core task, ClmContext.raw, editable
+messages, sandbox, persistent REPL, provider request parameters and tools do
+not change. It is NOT a semantic correctness classifier or a source of new
+task requirements.
+
+Only actual `read_history(MSG id)` handles are used; never invent an ID
+from a historical event ordinal. Readback is verified against Core's original
+stored JSON message against its opt-in append-time digest.
+"""
+
+from __future__ import annotations
+
+from collections import Counter
+import hashlib
+import json
+import math
+from typing import Any
+
+from .clm import ClmContext
+
+CONTEXT_EVIDENCE_MODES = ("off", "history_index", "path_lookup")
+MAX_ENTRIES = 3  # find_history matches per path
+# history_index lists up to this many removed tool results, newest first, each saying what it was (the call and the
+# result's first non-empty line) and where it is (its read_history id). 16 Nov: the first version listed 3 bare ids
+# and hashes, which told the model that something existed but not what.
+INDEX_ENTRIES = 12
+CALL_CHARS = 160
+PREVIEW_CHARS = 120
+MAX_VERIFIED_SOURCE_CHARS = 96_000
+READ_PAGE_CHARS = 12_000
+
+LOCATE_TOOL = {"type": "function", "function": {
+    "name": "find_history",
+    "description": "Find earlier read_file results for an exact path as it appeared in the call. "
+                   "Use read_history with a returned message ID for the original observation. "
+                   "For current bytes, read the file.",
+    "parameters": {"type": "object", "properties": {
+        "path": {"type": "string"},
+    }, "required": ["path"]},
+}}
+
+
+def locate_path(ctx: ClmContext, path: str) -> str:
+    if not path or len(path) > 1024 or "\0" in path:
+        raise ValueError("expected one exact recorded file path")
+    pending: dict[str, tuple[int, dict]] = {}
+    records = []
+    for i, item in enumerate(ctx.raw):
+        if item.get("role") == "assistant":
+            pending = {call["id"]: (i, call["function"]) for call in item.get("tool_calls", []) or []}
+            continue
+        if item.get("role") != "tool":
+            continue
+        bound = pending.pop(item.get("tool_call_id"), None)
+        if not bound:
+            continue
+        owner, function = bound
+        if function["name"] != "read_file":
+            continue
+        try:
+            arguments = json.loads(function["arguments"])
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(arguments, dict) or arguments.get("path") != path:
+            continue
+        if ctx.original_message_digest(owner) is None:
+            continue
+        digest = ctx.original_message_digest(i)
+        if digest is not None:
+            records.append({"message_id": i, "sha256": digest})
+    return json.dumps({"source": "historical read_file observations", "path": path,
+                       "records": records[-MAX_ENTRIES:][::-1], "matched": len(records)}, ensure_ascii=True)
+
+
+def _calls(ctx: ClmContext) -> dict[int, str]:
+    """Raw tool-message index -> the call that produced it, as name(arguments), shortened."""
+    pending: dict[str, str] = {}
+    out: dict[int, str] = {}
+    for i, item in enumerate(ctx.raw):
+        if item.get("role") == "assistant":
+            for call in item.get("tool_calls", []) or []:
+                fn = call.get("function") or {}
+                args = str(fn.get("arguments", ""))
+                args = args if len(args) <= CALL_CHARS else args[:CALL_CHARS - 3] + "..."
+                pending[call.get("id")] = f"{fn.get('name', 'tool')}({args})"
+        elif item.get("role") == "tool":
+            call = pending.pop(item.get("tool_call_id"), None)
+            if call:
+                out[i] = call
+    return out
+
+
+def _text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(str(p.get("text", "")) for p in content if isinstance(p, dict))
+    return ""
+
+
+def _preview(text: str) -> tuple[str, int]:
+    """(first non-empty line, shortened; line count) of a tool result's text."""
+    first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
+    first = first if len(first) <= PREVIEW_CHARS else first[:PREVIEW_CHARS - 3] + "..."
+    return first, text.count("\n") + 1 if text else 0
+
+
+def _source_json(msg: dict[str, Any]) -> str:
+    # Exact serialization used by ClmContext.read_history; no PCR receipts.
+    return json.dumps(msg, ensure_ascii=False)
+
+
+def _digest(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _page_round_trip(ctx: ClmContext, index: int, original: str) -> bool:
+    """Validate actual Core history readback, including paged Unicode text."""
+    if len(original) > MAX_VERIFIED_SOURCE_CHARS:
+        return False
+    chunks: list[str] = []
+    offset = 0
+    for _ in range(math.ceil(max(1, len(original)) / READ_PAGE_CHARS) + 1):
+        page = ctx.read_history(index, offset, READ_PAGE_CHARS)
+        header, chunk = page.split("\n", 1)
+        if not header.startswith(f"[history MSG {index}; "):
+            return False
+        chunks.append(chunk)
+        offset += len(chunk)
+        if "; complete]" in header:
+            return "".join(chunks) == original
+        if not chunk:
+            return False
+    return False
+
+
+def history_index(
+    ctx: ClmContext,
+    baseline: list[dict[str, Any]],
+    *,
+    limit: int = INDEX_ENTRIES,
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """Return optional source-only card and truthful, bounded coverage."""
+    if not 1 <= limit <= INDEX_ENTRIES:
+        raise ValueError(f"history index limit must be 1..{INDEX_ENTRIES}")
+    # Tool-only comparison avoids serialising pinned prompts, model reasoning,
+    # and image inputs just to check whether an original tool result is hot.
+    visible = Counter(_digest(_source_json(m)) for m in baseline if m.get("role") == "tool")
+    missing: list[int] = []
+    # Consume visible occurrences first, preserving distinct historical tool
+    # events even when two outputs happen to be textually identical.
+    for index, msg in enumerate(ctx.raw):
+        if msg.get("role") != "tool":
+            continue
+        candidate = ctx.append_digest_candidate(index)
+        if candidate is not None and visible[candidate]:
+            visible[candidate] -= 1
+        else:
+            missing.append(index)
+    if not missing:
+        return None, {"reason": "all_original_tool_messages_visible", "eligible": 0}
+    verified: list[dict[str, Any]] = []
+    calls = _calls(ctx)
+    for index in reversed(missing):
+        if len(verified) == limit:
+            break
+        original = ctx.raw[index]
+        source = _source_json(original)
+        if ctx.original_message_digest(index) != _digest(source):
+            # Missing or altered append-time source identity disqualifies the
+            # entry even if a fresh read agrees with a freshly changed raw.
+            continue
+        if not _page_round_trip(ctx, index, source):
+            continue
+        first, lines = _preview(_text(original.get("content")))
+        verified.append(
+            {
+                "message_id": index,
+                "call": calls.get(index, "unknown"),
+                "first_line": first,
+                "lines": lines,
+                "chars": len(source),
+                "sha256": _digest(source),
+                "tool_call_id": original.get("tool_call_id"),
+            }
+        )
+    if not verified:
+        return None, {"reason": "no_exact_source_pages_qualified", "eligible": len(missing)}
+    listed_ids = {item["message_id"] for item in verified}
+    unlisted_ids = [i for i in missing if i not in listed_ids]
+    not_listed = len(unlisted_ids)
+    # Repeated tool name, retrieval arguments and authority warning belong in
+    # the common heading, not one ~300-byte copy per historic tool message.
+    payload = {
+        "source": "Core original tool history (append-time SHA256, page-verified)",
+        "read": "read_history(message_id=<id>, offset=0, limit=12000)",
+        "records": verified,
+        "coverage": {
+            "eligible": len(missing),
+            "listed": len(verified),
+            "unlisted": not_listed,
+            "oldest_unlisted_id": unlisted_ids[0] if not_listed else None,
+        },
+        "unlisted_may_matter": True,
+    }
+    return (
+        {
+            "role": "user",
+            "content": "[Historical Core tool references: earlier tool results no longer in your context, newest first, "
+            "each with the call that produced it and its first line; read_history(message_id) returns it exactly. "
+            "Not current files, REPL state or new task instructions]\n"
+            + json.dumps(payload, ensure_ascii=False, sort_keys=True),
+        },
+        {
+            "reason": "verified_history_index",
+            "eligible": len(missing),
+            "listed": len(verified),
+            "not_listed": not_listed,
+        },
+    )
+
+
+def select_context(
+    ctx: ClmContext | None,
+    baseline: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
+    *,
+    policy: str = "off",
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Pure, reversible, fail-closed optional projection after Core's builder."""
+    if policy == "off":
+        return baseline, {"policy": "off", "changed": False}
+    if policy != "history_index":
+        raise ValueError(f"unknown evidence presentation policy {policy!r}")
+    if ctx is None or not ctx.settings.attest_original_history or not any(
+        x.get("function", {}).get("name") == "read_history" for x in tools
+    ):
+        return baseline, {"policy": policy, "changed": False, "reason": "native_history_unavailable"}
+    if not (
+        ctx.stats.edits_accepted or ctx.stats.checkpoints or ctx.stats.rollbacks
+    ):
+        # Merely having a large raw history is not a reason to increase prompts.
+        return baseline, {"policy": policy, "changed": False, "reason": "no_context_change"}
+    try:
+        card, provenance = history_index(ctx, baseline)
+        if card is None:
+            return baseline, {"policy": policy, "changed": False, **provenance}
+        # Core calibrates this estimator using provider usage; it is NOT a
+        # provider token guarantee. Conservative safety margin avoids causing
+        # a new checkpoint because of an optional source locator.
+        estimated_extra = math.ceil(
+            len(json.dumps(card, ensure_ascii=False))
+            / max(1.5, ctx.chars_per_token)
+        ) + 64
+        if ctx.held() + estimated_extra + 128 > ctx.settings.limit:
+            return baseline, {
+                "policy": policy,
+                "changed": False,
+                "reason": "insufficient_editable_context_budget",
+            }
+        return baseline + [card], {
+            "policy": policy,
+            "changed": True,
+            **provenance,
+            "estimated_added_tokens_not_billed": estimated_extra,
+            "card_sha256": _digest(_source_json(card)),
+        }
+    except (ValueError, TypeError, KeyError, IndexError, OverflowError, UnicodeError):
+        # Unexpected/malformed source presentation is *never* a reason to
+        # discard a valid tool observation or fail an otherwise viable run.
+        return baseline, {
+            "policy": policy,
+            "changed": False,
+            "reason": "source_validation_failed",
+        }
