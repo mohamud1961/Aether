@@ -32,7 +32,7 @@ recovered with all 11 records (48s, $0.005).
 
 These jobs come from Terminal-Bench, a public set of realistic computer tasks graded by hidden tests; the first
 three are from version 4, the hardest set. Core does not solve the hardest tasks every time. These are chosen
-successful runs, and attempt-level rates are kept in the research record. Cost is model usage priced at
+successful runs, not success rates. Cost is model usage priced at
 $0.25 / $0.025 / $0.90 per million input / cached / output tokens.
 
 ## Try it in 60 seconds

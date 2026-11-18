@@ -7,8 +7,7 @@ wording is paraphrased here, because benchmark text is not republished.
 Time is from first request to finish. Cost is model usage priced at $0.25 / $0.025 / $0.90 per million input /
 cached / output tokens. Steps are model turns.
 
-These are chosen successful runs. On the hardest tasks Core does not succeed every attempt; attempt-level rates are
-in the research record.
+These are chosen successful runs, not success rates. On the hardest tasks Core does not succeed on every attempt.
 
 ## Bank capital calculation (Terminal-Bench 4)
 
