@@ -100,6 +100,8 @@ async def _run_calls(s: _Session, calls: list[dict[str, Any]]) -> bool:
                 pinned = s.clm.pinned if s.clm else s.messages
                 text = facts.ManagedFactsText(str(pinned[s.facts_pinned_index]["content"]) if s.config.facts_pull else s.facts.context_summary(), s.facts.initial_workspace)
                 pinned[s.facts_pinned_index] = {"role": "user", "content": text}
+        if getattr(s, "kit", None) and name != "finish":  # shell kit: queued images, ctx edits, ended jobs
+            out = await s.kit.after(s, name, out)
         s.report_steps.append(
             finish_report.record(s.result.steps, name, args, out, s.workdir)
         )

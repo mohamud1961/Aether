@@ -223,7 +223,7 @@ class TerminalLifecycle:
                 + str(exc)[:160]
                 + "]\n"
             )
-        init = _INIT
+        init = _INIT + getattr(self, "extra_init", "")  # shell kit PATH (AETHER_CORE_SHELL_KIT)
         if session.pty and session.bash:
             # SIGINT can skip the sourced line's normal completion writer.
             # A prompt callback proves Bash regained control and captures the

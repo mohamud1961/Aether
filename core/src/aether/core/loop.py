@@ -24,7 +24,7 @@ from .loop_records import RunResult, Trace  # re-exported for existing callers
 from .oversight import ReviewPlan
 from .provider import ChatProvider, ProviderError
 from .review import Transport
-from . import agenda, loop_mirror, operations, session_log, step0, workspace_brief
+from . import agenda, loop_mirror, operations, session_log, shellkit, step0, workspace_brief
 from .tools import system_prompt
 from .loop_config import AFTER_CUT, AFTER_CUT_MAX_TOKENS, CONTEXT_MODES, MAX_OUTPUT_TOKENS, VERIFIER_ROLE, CoreConfig  # noqa: F401
 from .loop_session import _Session, _append, _publish_facts
@@ -148,6 +148,7 @@ async def run_agent(
                 if s.browser:  # A11/A13: adopt the task's sidecar and track browser result delivery
                     s.browser.adopt, s.browser.conversation, s.browser.delivery_tag = True, deliveries, s.delivery_tag
             python = await s.repl.start() if config.repl else ""
+            s.kit = await shellkit.start(s) if getattr(config, "shell_kit", False) else None
             see = loop_tools.assemble(s, config, python)
             if s.facts and config.facts_pull:
                 start_note = "\n".join(filter(None, (start_note, await s.facts.start())))

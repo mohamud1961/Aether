@@ -31,6 +31,11 @@ def assemble(s: Any, config: Any, python: str) -> bool:
 
     s.tools = tool_variants.apply(s.tools, multi=getattr(config, "multi_edit", False),
                                   cap_s=float(getattr(config, "wait_cap_s", 0.0) or 0.0))
+    if getattr(s, "kit", None):
+        from . import shellkit
+
+        extra = shellkit.describe(bool(s.kit.python), bool(s.kit.ctx_path))
+        s.tools = [shellkit.with_commands(t, extra) for t in s.tools]  # copies: tool specs are shared constants
     if python_only and not python:
         raise RuntimeError("toolset=python needs a working python3 in the task environment")
     if getattr(config, "mcp_servers", ()) and config.role == "worker":
