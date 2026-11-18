@@ -17,6 +17,10 @@ By [Mohamud Mohamud](https://github.com/mohamud1961)
   agents running for 88 hours, at around $10 million by Sam Altman's estimate, followed by formal verification in
   Lean. When no single agent's "done" can be trusted, the answer is to run thousands of them and check everything.
   Agents that are right when they say they are would make that kind of result far cheaper.
+- **It matters most where agents are heading: new work.** Agents are being given more freedom on harder, longer,
+  frontier tasks: research, new systems, problems nobody has solved. There, nothing external exists to check against:
+  no answer key, no reference solution, no prior example. The agent's own check is the only check, so an agent that
+  verifies against its own assumption has nothing to catch it.
 - **Agents are inconsistent, so their passes cannot be relied on.** An agent that solves a task once should solve
   it every time. Today it is closer to a coin flip on a large share of tasks.
 - **Oversight runs on the agent's report.** If an agent says "done and verified" when it is not, oversight fails
@@ -69,6 +73,13 @@ trials from 13 frontier models across OpenAI, Anthropic, Google, xAI, Meta and Z
 - **More reasoning does not fix it.** The #1 agent at the time failed the same assumption tasks at every effort.
 - **The harness moves it, it does not remove it.** Changing the harness around the same model changed which
   assumption was made, never whether one was.
+- **Outside evidence works; the agent rarely finds its own.** When the deciding fact came from a source independent of
+  the agent's assumption, it changed the outcome. On one study task across 13 frontier models, runs that used the
+  file's own values passed 86% of the time, against 18% for runs that used the task's illustrative example. Passing
+  runs of a stronger model checked their work against independent sources (a standard definition, manufactured
+  ground truth, an external measurement), while failing runs checked against tests derived from their own theory. In
+  Aether's replays, agents acted on every outside fact put in front of them. The open problem is new work, where no
+  one can hand the agent that fact: the agent has to create an independent check for itself.
 - **It ends in a confident "done".** 797 of 853 failures in Aether's largest pool ended with the agent reporting
   success, and failed runs took 58% of the spend.
 
@@ -82,7 +93,9 @@ Every number and source: [research/incorrect-work.md](research/incorrect-work.md
 2. **An open benchmark.** Tasks where the agent's own claim can be compared with the real state of the work, with
    graders tested against known-bad solutions.
 3. **Fixes, proven.** Pre-registered tests of safeguards across frontier agents and models, with every trace
-   published and failed predictions recorded as failed.
+   published and failed predictions recorded as failed. The target is the hard case: an agent that builds its own
+   independent check when there is no outside reference, so its "done" can be trusted on work that has never been
+   done before.
 
 ## First result: Core Agent
 

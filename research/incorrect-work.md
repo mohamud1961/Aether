@@ -131,6 +131,18 @@ against an independent source: a standard definition, manufactured ground truth,
 second tool. The failing runs check against tests generated from their own theory, or an internal metric standing
 in for the real one.
 
+## Outside evidence, and the case where there is none
+
+- When the deciding fact reaches the agent from a source independent of its assumption, it acts on it. On
+  extract-elf across 13 frontier models, runs keyed to the file's own addresses passed 43 of 50 (86%); runs keyed to
+  the illustrative example passed 13 of 73 (18%).
+- In Aether's replays of wrong finishes, the agent acted on every outside fact it was shown (10 of 10 continuations)
+  and fixed each stated defect; restating the file's own claim next to the task's sentence corrected a column swap in
+  8 of 8 replays against 1 of 8 without. These are small replays scored by proxy, and the deciding fact had to be
+  supplied from outside.
+- That is the limit: on new work there is no outside source to supply it. The research target is an agent that
+  creates an independent check for itself, drawn from a different source than its own hypothesis.
+
 ## What has been tried and failed
 
 Self-check text, a same-model verifier (0 refutations), prewritten acceptance checks (harmful in 42% of cases), a
