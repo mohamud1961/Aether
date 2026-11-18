@@ -1,16 +1,16 @@
 # Aether
 
 **Aether is a one-person AI lab that builds agents and studies what makes them reliable.**
-Its agent, **[Core Agent](https://github.com/mohamud1961/core-agent)**, is a lean, cheap agent: over 3× cheaper than Codex. You describe a job in
-plain words, and it works in a Linux sandbox until the job is done. The research asks a harder question: what
+Its agent, **[Core Agent](https://github.com/mohamud1961/core-agent)**, is a lean, cheap agent: 26% cheaper than Codex on Terminal-Bench 2.1, on the same
+model. You describe a job in plain words, and it works in a Linux sandbox until the job is done. The research asks a harder question: what
 should the code around a model add, and how would we know it helped?
 
 By [Mohamud Mohamud](https://github.com/mohamud1961)
 
 ## Core Agent at work
 
-On the 24 Terminal-Bench 2.1 tasks both ran, priced the same: **$0.013 per solved task against Codex's $0.044**,
-with 5× fewer tokens per run. [The comparison](https://github.com/mohamud1961/core-agent/tree/main/benchmarks).
+Head to head with Codex on Terminal-Bench 2.1, both on GPT Luna: **25/25 tasks passed each, and Core cost 26%
+less** ($0.416 against $0.563). [The comparison](https://github.com/mohamud1961/core-agent/tree/main/benchmarks).
 
 Real runs with GPT Luna, graded afterwards by hidden tests, at list prices. Chosen examples; details in
 [RUNS.md](https://github.com/mohamud1961/core-agent/blob/main/RUNS.md).
