@@ -96,10 +96,16 @@ Every number and source: [research/incorrect-work.md](research/incorrect-work.md
    "verifies" against its own assumption, so the check passes and the error survives.
 2. **An open benchmark.** Tasks where the agent's own claim can be compared with the real state of the work, with
    graders tested against known-bad solutions.
-3. **Fixes, proven.** Pre-registered tests of safeguards across frontier agents and models, with every trace
-   published and failed predictions recorded as failed. The target is the hard case: an agent that builds its own
-   independent check when there is no outside reference, so its "done" can be trusted on work that has never been
-   done before.
+3. **Find the fix.** Pre-registered tests of candidate safeguards across frontier agents and models, with every
+   trace published and failed predictions recorded as failed. The target is the hard case: an agent that builds its
+   own independent check when there is no outside reference, and trusts what it finds, so its "done" can be trusted
+   on work that has never been done before.
+
+**Where it stands.** The failure is measured and its mechanism is known: what is missing is an observation from
+outside the agent's frame. Supplying that observation from outside works. Getting the agent to produce it for
+itself does not yet. Every attempt so far, including self-check prompts, a same-model verifier, challenge checks,
+provenance detectors and blind authored checks, has failed its pre-registered bar. This is unsolved, and it is the
+work ahead.
 
 ## First result: Core Agent
 
