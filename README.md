@@ -10,9 +10,9 @@ By [Mohamud Mohamud](https://github.com/mohamud1961)
 ## Core Agent at work
 
 On the 24 Terminal-Bench 2.1 tasks both ran, priced the same: **$0.013 per solved task against Codex's $0.044**,
-with 5× fewer tokens per run and a similar pass rate (73% vs 76%). [The comparison](https://github.com/mohamud1961/core-agent/tree/main/benchmarks).
+with 5× fewer tokens per run. [The comparison](https://github.com/mohamud1961/core-agent/tree/main/benchmarks).
 
-Real runs with `gpt-6-luna`, graded afterwards by hidden tests, at list prices. Chosen examples; details in
+Real runs with GPT Luna, graded afterwards by hidden tests, at list prices. Chosen examples; details in
 [RUNS.md](https://github.com/mohamud1961/core-agent/blob/main/RUNS.md).
 
 | Job | Time | Cost |
