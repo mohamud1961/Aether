@@ -258,3 +258,37 @@ class Files:
         lo, hi = max(0, line - 4), min(len(lines), line + new_str.count("\n") + 3)
         snippet = "\n".join(f"{i + 1:6d}  {lines[i]}" for i in range(lo, hi))
         return f"edited {path} ({count if replace_all else 1} replacement{'s' if replace_all and count > 1 else ''})\n{snippet}"
+
+    async def edit_many(self, path: str, edits: list) -> str:
+        """AETHER_CORE_MULTI_EDIT: several replacements in one file, in order, all or nothing (tool_variants)."""
+        path = self.resolve(path)
+        if not isinstance(edits, list) or not edits:
+            raise ValueError("edits must be a non-empty list of {old_str, new_str}")
+        mode = await self._mode(path)
+        payload = await get_bytes(self._env, path)
+        try:
+            text = payload.decode()
+        except UnicodeDecodeError as exc:
+            raise ValueError(f"{path} is not UTF-8 text") from exc
+        updated, at = text, []
+        for i, edit in enumerate(edits, 1):
+            old, new = str((edit or {}).get("old_str", "")), str((edit or {}).get("new_str", ""))
+            every = bool((edit or {}).get("replace_all"))
+            if not old:
+                raise ValueError(f"edit {i} of {len(edits)}: old_str is empty; no write attempted")
+            count = updated.count(old)
+            if count == 0:
+                evidence = _edit_miss_evidence(path, updated.encode(), updated, old)
+                raise ValueError(f"edit {i} of {len(edits)}: old_str not found in {path} (after the edits before it); "
+                                 f"no write attempted; {evidence}")
+            if count > 1 and not every:
+                raise ValueError(f"edit {i} of {len(edits)}: old_str occurs {count} times in {path}; add context or "
+                                 "set replace_all=true; no write attempted")
+            at.append(updated.count("\n", 0, updated.find(old)) + 1)
+            updated = updated.replace(old, new) if every else updated.replace(old, new, 1)
+        await put_bytes(self._env, updated.encode(), path, mode=mode,
+                        expected_sha256=hashlib.sha256(payload).hexdigest())
+        self.written[path] = len(updated.encode())
+        lines = updated.split("\n")
+        return f"edited {path} ({len(edits)} edits, at lines {', '.join(map(str, at))}; {len(lines)} lines now)"
+

@@ -12,7 +12,7 @@ from . import facts, finish_report, image_region, images
 from .context import SAVE_OVER, SAVED_NOTE, saved_path
 from .env import get_bytes, put_bytes, run
 from .provider import parse_arguments
-from . import auto_wait, completion_notice, loop_mirror, operations, stated_use
+from . import auto_wait, completion_notice, loop_mirror, operations, stated_use, tool_variants
 from .tools import validate_call
 from .loop_context import _keep_history
 from .loop_finish import _finish, _with_state
@@ -261,7 +261,7 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
             name=str(args.get("name") or "main"),
             input=str(args.get("input", "")),
             mode=str(args.get("mode") or "command"),
-            wait_s=auto_wait.grace(s.config, float(args.get("wait_s", 30))),
+            wait_s=tool_variants.wait(s.config, auto_wait.grace(s.config, float(args.get("wait_s", 30)))),
             interrupt=bool(args.get("interrupt")),
         )), False
     if name == "terminal_wait":
@@ -272,7 +272,7 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
         s.trace("terminal_completion_frontier", **outcome)
         return json.dumps(outcome, ensure_ascii=False), False
     if name == "python":
-        return await s.repl.run(str(args.get("code", "")), wait_s=float(args.get("wait_s", 60)), interrupt=bool(args.get("interrupt"))), False
+        return await s.repl.run(str(args.get("code", "")), wait_s=tool_variants.wait(s.config, float(args.get("wait_s", 60))), interrupt=bool(args.get("interrupt"))), False
     if name == "browser" and s.browser:
         if args.get("screenshot") and not s.config.images:
             return "error: browser screenshot requires image support", False
@@ -331,6 +331,8 @@ async def _dispatch(s: _Session, name: str, args: dict[str, Any]) -> tuple[str, 
             s.trace("outside_witness", path=args["path"], state=s.witness.seen.get(args["path"]))
         if name == "write_file":
             out = await s.files.write(args["path"], str(args["content"]))
+        elif "edits" in args and getattr(s.config, "multi_edit", False):
+            out = await s.files.edit_many(args["path"], args["edits"])
         else:
             out = await s.files.edit(args["path"], str(args["old_str"]), str(args["new_str"]), bool(args.get("replace_all")))
         return (f"{out}\n{kept}" if kept else out), False

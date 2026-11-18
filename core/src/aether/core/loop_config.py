@@ -105,6 +105,8 @@ class CoreConfig:
     rehydrate: bool = False  # opt-in (E18 K2): after a checkpoint or provider compaction, changed files read again
     auto_wait: bool = False  # opt-in (auto_wait): a reply with no tool call while work runs = sleep until it finishes
     auto_wait_grace_s: float = 30.0  # auto_wait: a terminal command's blocking window cap (Unreal: 1)
+    multi_edit: bool = False  # opt-in (AETHER_CORE_MULTI_EDIT): edit_file takes a list of edits (tool_variants)
+    wait_cap_s: float = 0.0  # opt-in (AETHER_CORE_WAIT_CAP): a terminal/python call blocks at most this long; 0 = off
     completion_notices: bool = False  # opt-in: one line when a background terminal command finishes (completion_notice)
     terminal_result_delivery: bool = False  # opt-in: collect completed terminal output at a tool boundary
     workspace_brief: bool = False

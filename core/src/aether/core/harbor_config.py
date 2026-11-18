@@ -163,6 +163,8 @@ def build_config(*, environ: Mapping[str, str] | None = None) -> CoreConfig:
         completion_notices=_choice(environ, "AETHER_CORE_COMPLETION_NOTICES", REPL_MODES, "off") == "on",
         auto_wait=_choice(environ, "AETHER_CORE_AUTO_WAIT", REPL_MODES, "off") == "on",
         auto_wait_grace_s=float(_choice(environ, "AETHER_CORE_AUTO_WAIT_GRACE", ("30", "1"), "30")),
+        multi_edit=_choice(environ, "AETHER_CORE_MULTI_EDIT", REPL_MODES, "off") == "on",
+        wait_cap_s=float(_choice(environ, "AETHER_CORE_WAIT_CAP", ("off", "30"), "off").replace("off", "0")),
         # Default on since 16 Nov (lean screen F + H2 holdout): facts appended, never rewritten in place; the
         # rewrites put 10-12% of input on the uncached rate. Cost 0.52x (screen) and 0.62x (holdout), passes equal.
         stable_facts=_choice(environ, "AETHER_CORE_STABLE_FACTS", REPL_MODES, "on") == "on",

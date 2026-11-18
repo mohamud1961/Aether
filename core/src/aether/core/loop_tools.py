@@ -27,6 +27,10 @@ def assemble(s: Any, config: Any, python: str) -> bool:
         python_only=python_only,
         patch=config.toolset == "codex",
     )
+    from . import tool_variants
+
+    s.tools = tool_variants.apply(s.tools, multi=getattr(config, "multi_edit", False),
+                                  cap_s=float(getattr(config, "wait_cap_s", 0.0) or 0.0))
     if python_only and not python:
         raise RuntimeError("toolset=python needs a working python3 in the task environment")
     if getattr(config, "mcp_servers", ()) and config.role == "worker":
