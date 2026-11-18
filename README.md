@@ -1,41 +1,60 @@
 # Aether
 
-**Aether is a one-person AI lab working on false confidence in AI agents: why even frontier agents treat an
-assumption as evidence, and report "done" when the work is wrong.**
+**Aether is a one-person AI lab working on incorrect work: why capable AI agents deliver wrong results they
+believe are right, and how to stop it.**
 
-Core Agent was the first breakthrough: an agent 26% cheaper than Codex on Terminal-Bench 2.1, on the same model.
-The bigger challenge is the one Aether is going after: making an agent's "done" something you can trust.
+Frontier models are smart enough to do the work. They still get it wrong, and one of the biggest reasons is
+false confidence: the agent treats an assumption as evidence, checks its work against that assumption, and reports
+"done". Core Agent was the lab's first breakthrough. Incorrect work is the bigger challenge.
 
 By [Mohamud Mohamud](https://github.com/mohamud1961)
 
-## The problem
+## Why it matters: wrong work is the most expensive work
 
-Agents now run long jobs with nobody watching, then report back that the work is finished and checked. Oversight
-depends on that report being true. Aether's question is when it is, and why it so often is not.
+Every wrong result is paid for twice: once to produce it, and again to find it and redo it. At frontier scale that
+cost is enormous. OpenAI's claimed Navier-Stokes result used about 10,000 agents running for 88 hours, at around
+$10 million by Sam Altman's own estimate. On new work nobody has done before, there is no answer key, so every
+confident wrong turn is either caught at great cost or not caught at all.
 
-- **Thousands of traces.** 3,448 graded trials of Aether's own agents, plus 736 public trials from frontier agents,
-  studied trial by trial, with the decision rule for each experiment fixed before it ran.
-- **It is a frontier problem, not a small-model one.** Across 736 public Terminal-Bench 2.1 trials from 22
-  submissions and 13 models, the top-ranked agent (Codex on GPT Astra) failed all 25 runs on two tasks, at every
-  reasoning effort. Other frontier models failed the same tasks with the same reading.
-- **The information was there.** In 15 of 16 audited failures, the fact that decided the task was already in the
-  agent's environment. The agent either never checked it, or checked it and overrode it with an assumption, and
-  then reported success.
-- **Harness patches move it, they do not remove it.** Changing the harness around the same model changed which
-  assumption was made, never whether one was. Verifiers, requirement ledgers, prewritten checks and a reading judge
-  were all tested against false completion and none was good enough to keep (details below).
+An AI that can be right should not be wrong. Cutting incorrect work is both a cost saving and a capability
+multiplier: the same model, at the same price, delivering more work that is actually correct.
 
-Summary and evidence: [research/false-confidence.md](research/false-confidence.md).
+## The evidence: this is a universal LLM problem
+
+More than 4,000 graded agent trials studied trial by trial: 3,448 of Aether's own agents, and 736 public
+Terminal-Bench 2.1 leaderboard trials from 13 frontier models across OpenAI, Anthropic, Google, xAI, Meta and Zhipu.
+
+**The same models, on the same leaderboard, split sharply by kind of task.** On tasks that test ability, they pass
+91%. On tasks that hinge on an assumption the agent has to check, they pass 40%.
+
+| Model | Ability tasks | Assumption tasks |
+|---|---|---|
+| GPT Astra (Codex, #1 overall) | 99% | 7% |
+| Claude Fable 5 (Claude Code) | 100% | 33% |
+| GPT Terra | 100% | 30% |
+| Gemini 3.1 Pro | 67% | 40% |
+| All 13 models | 91% | 40% |
+
+Six tasks chosen to contrast the two kinds; per-model results for all 13 are in
+[research/incorrect-work.md](research/incorrect-work.md).
+
+- **It is not missing information.** In 15 of 16 audited failures, the fact that decided the task was already in
+  the agent's environment. The agent never checked it, or checked it and overrode it with an assumption.
+- **It is not reasoning effort.** The #1 agent failed the same assumption tasks at every reasoning level, low to max.
+- **It is not the harness.** Changing the harness around the same model changed which assumption was made, never
+  whether one was. Verifiers, ledgers, prewritten checks and a reading judge were all tested and none was kept.
+- **It ends in a confident "done".** Of 853 failures in Aether's own largest pool, 797 ended with the agent finishing
+  and reporting success, and failed runs took 58% of the spend.
 
 ## What Aether is doing about it
 
-1. **Measure it.** An open false-confidence benchmark: tasks where the agent's own claim can be compared with the
+1. **Measure it.** An open benchmark for incorrect work: tasks where the agent's own claim can be compared with the
    real state of the work, using graders that are themselves tested against known-bad solutions.
-2. **Explain it.** A trace-level map of where false confidence enters: the deciding fact is never checked; it is
-   checked and overridden; or the agent "verifies" with a check built on the same assumption, so the check passes
-   and the error survives.
-3. **Test fixes honestly.** Pre-registered tests of safeguards across frontier agents and models, with every trace
-   published and failed predictions recorded as failed.
+2. **Explain it.** A trace-level map of where wrong work starts: the deciding fact is never checked; it is checked
+   and overridden; or the agent "verifies" with a check built on the same assumption, so the check passes and the
+   error survives.
+3. **Fix it, and prove the fix.** Pre-registered tests of safeguards across frontier agents and models, with every
+   trace published and failed predictions recorded as failed.
 
 ## First result: Core Agent
 
@@ -64,7 +83,7 @@ Code, quickstart and how it is built: **[github.com/mohamud1961/core-agent](http
 |---|---|---|
 | **Hiring AI engineers** (startups, product teams) | **[Core Agent](https://github.com/mohamud1961/core-agent)** | The cost comparison with Codex, real runs, a 60-second quickstart, how it is built and tested |
 | **Hiring research engineers** (labs, senior roles) | Read on, then [Core Agent](https://github.com/mohamud1961/core-agent) and [research/findings.md](research/findings.md) | How the engineering and the research fit, and the evidence behind each design choice |
-| **Fellowships, residencies and grants** | **[research/false-confidence.md](research/false-confidence.md)**, then [research/](research/) | The problem, the evidence from thousands of traces, the plan, the method and the negative results |
+| **Fellowships, residencies and grants** | **[research/incorrect-work.md](research/incorrect-work.md)**, then [research/](research/) | Incorrect work: the problem, the evidence from more than 4,000 trials, the plan, the method and the negative results |
 
 ## At a glance
 
