@@ -12,8 +12,13 @@ By [Mohamud Mohamud](https://github.com/mohamud1961)
 ## Why it matters
 
 - **Wrong work is the most expensive work.** It is paid for once to produce and again to find and redo. On new work
-  with no answer key, a confident wrong turn may never be caught. OpenAI's claimed Navier-Stokes result used about
-  10,000 agents for 88 hours, at around $10 million by Sam Altman's estimate.
+  with no answer key, a confident wrong turn may never be caught.
+- **Today, frontier results are bought with redundancy.** OpenAI's claimed Navier-Stokes result took about 10,000
+  agents running for 88 hours, at around $10 million by Sam Altman's estimate, followed by formal verification in
+  Lean. When no single agent's "done" can be trusted, the answer is to run thousands of them and check everything.
+  Agents that are right when they say they are would make that kind of result far cheaper.
+- **Agents are inconsistent, so their passes cannot be relied on.** An agent that solves a task once should solve
+  it every time. Today it is closer to a coin flip on a large share of tasks.
 - **Oversight runs on the agent's report.** If an agent says "done and verified" when it is not, oversight fails
   silently, and the failure grows with autonomy.
 - **An AI that can be right should not be wrong.** Cutting incorrect work saves money and multiplies what the same
@@ -24,6 +29,7 @@ By [Mohamud Mohamud](https://github.com/mohamud1961)
 | Where | What it shows |
 |---|---|
 | **Terminal-Bench 4.1**, top 10 agents from OpenAI, Anthropic, Google and GitHub, 3,300 trials | **97% of failures were finished, wrong work handed in**, not timeouts or crashes |
+| **Terminal-Bench 4.1**, consistency across 5 runs per task | Of the tasks a top-10 agent solved at least once, **38% it did not solve every time**. **35% of all failures were on tasks the same agent had solved in another run**: it could do the work, and still handed in wrong work |
 | **SWE-bench Verified**, 9 frontier models on the same agent, 4,500 tasks | Failed tasks were 26% of tasks but **38% of the spend**: a failure costs 1.7x a success |
 | **SWE-bench Verified**, maintainer review ([METR](https://metr.org/notes/2026-03-10-many-swe-bench-passing-prs-would-not-be-merged-into-main/)) | Roughly **half of test-passing patches would not be merged** |
 | **FrontierCode-AA 2.0** ([Artificial Analysis](https://artificialanalysis.ai/evaluations/frontiercode-2-0)), Claude Fable 5.2, GPT-6.2 Astra | The best agents produce a mergeable change on **49%** of real-repo tasks; failures are plausible fixes that are wrong |

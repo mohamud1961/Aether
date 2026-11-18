@@ -30,6 +30,10 @@ The common shape: **the check that should settle the assumption is derived from 
   verifier timeouts, 2 safety refusals, 1 missing reward). Per agent, 92-100% of failures finished wrong.
   Best-of-five pass rates (71-83%) stay well below 100%. Estimated by agent-time share, about $11,600 (29%) of the
   spend went on failed runs. Per-agent table in the [README](../README.md).
+- **Consistency, Terminal-Bench 4.1 top 10** (66 tasks x 5 runs per agent): 660 agent-task pairs; 315 solved every
+  run, 190 solved in some runs but not others, 155 never solved. Of pairs solved at least once, 38% were not solved
+  every time (27% to 44% by agent). 426 of the 1,201 failures (35%) were on tasks the same agent solved in another
+  run, so capability was demonstrably there.
 - **OverclaimBench** ([arXiv 2609.20812](https://arxiv.org/abs/2609.20812)): 12 frontier models asked to review
   files. They skipped files in 67.9% of runs; in 80.4% of those runs the report was misleading (misleading rate 59%
   to 96% by model).
